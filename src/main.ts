@@ -4,7 +4,6 @@ import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings
 interface DictEntry {
 	p?: string;
 	t?: string;
-	d?: string;
 	e?: string;
 	g?: string;
 }
@@ -225,19 +224,6 @@ export default class LinkDictPlugin extends Plugin {
 			const lines = translation.split('\n').filter(line => line.trim() !== '');
 			if (lines.length > 0) {
 				content += '## 释义\n\n';
-				for (const line of lines) {
-					const escapedLine = line.trim().replace(/\[/g, '\\[');
-					content += `- ${escapedLine}\n`;
-				}
-				content += '\n';
-			}
-		}
-
-		if (entry.d) {
-			const definition = entry.d.replace(/\\n/g, '\n');
-			const lines = definition.split('\n').filter(line => line.trim() !== '');
-			if (lines.length > 0) {
-				content += '## 英文释义\n\n';
 				for (const line of lines) {
 					const escapedLine = line.trim().replace(/\[/g, '\\[');
 					content += `- ${escapedLine}\n`;
