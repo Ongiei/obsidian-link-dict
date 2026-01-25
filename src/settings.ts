@@ -1,4 +1,4 @@
-import {AbstractInputSuggest, App, PluginSettingTab, Setting, TAbstractFile, TFolder} from "obsidian";
+import {AbstractInputSuggest, App, ButtonComponent, PluginSettingTab, Setting, TAbstractFile, TFolder} from "obsidian";
 import LinkDictPlugin from "./main";
 
 export interface LinkDictSettings {
@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: LinkDictSettings = {
 
 export class LinkDictSettingTab extends PluginSettingTab {
 	plugin: LinkDictPlugin;
+	downloadButtonComponent: ButtonComponent | null = null;
 
 	constructor(app: App, plugin: LinkDictPlugin) {
 		super(app, plugin);
@@ -47,6 +48,27 @@ export class LinkDictSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.replaceWithLink = value;
 						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Offline dictionary')
+			.setDesc('Download offline dictionary data (dictionary.json). If already exists, it will be overwritten.')
+			.addButton(async (button) => {
+				this.downloadButtonComponent = button;
+				
+				const dictionaryExists = await this.app.vault.adapter.exists(`${this.plugin.manifest.dir}/dictionary.json`);
+				const buttonText = dictionaryExists ? 'Redownload' : 'Download';
+				
+				button
+					.setButtonText(buttonText)
+					.setClass('mod-cta')
+					.onClick(async () => {
+						button.setButtonText('Downloading...');
+						button.setDisabled(true);
+						await this.plugin.downloadDictionary();
+						button.setButtonText('Redownload');
+						button.setDisabled(false);
 					});
 			});
 	}

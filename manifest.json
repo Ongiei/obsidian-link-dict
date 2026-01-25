@@ -1,10 +1,10 @@
 {
 	"id": "link-dict",
 	"name": "LinkDict",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "A lemma-first offline dictionary plugin for Obsidian. Look up words and generate markdown notes with automatic lemma redirection.",
 	"author": "Ongiei",
-	"authorUrl": "",
+	"authorUrl": "https://github.com/Ongiei/obsidian-link-dict",
 	"isDesktopOnly": false
 }

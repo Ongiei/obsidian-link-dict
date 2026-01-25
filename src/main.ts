@@ -1,4 +1,4 @@
-import {Editor, MarkdownView, Menu, Notice, Plugin, TFile} from 'obsidian';
+import {Editor, MarkdownView, Menu, Notice, Plugin, requestUrl, TFile} from 'obsidian';
 import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings";
 
 interface DictEntry {
@@ -69,13 +69,42 @@ export default class LinkDictPlugin extends Plugin {
 
 	async loadDictionary() {
 		try {
-			const dictionaryPath = `${this.app.vault.configDir}/plugins/link-dict/dictionary.json`;
+			const dictionaryPath = `${this.manifest.dir}/dictionary.json`;
+			const fileExists = await this.app.vault.adapter.exists(dictionaryPath);
+			
+			if (!fileExists) {
+				new Notice('Dictionary file missing, please download in settings.\n检测到缺少词典文件，请前往插件设置页进行下载。');
+				return;
+			}
+			
 			const dictionaryContent = await this.app.vault.adapter.read(dictionaryPath);
 			this.dictionary = JSON.parse(dictionaryContent) as DictionaryDB;
 			new Notice(`Dictionary loaded: ${Object.keys(this.dictionary).length} entries`);
 		} catch (error) {
 			new Notice('Failed to load dictionary.json');
 			console.error('Error loading dictionary:', error);
+		}
+	}
+
+	async downloadDictionary() {
+		try {
+			const url = `https://github.com/Ongiei/obsidian-link-dict/releases/download/${this.manifest.version}/dictionary.json`;
+			const dictionaryContent = await requestUrl({url});
+			
+			if (dictionaryContent.status !== 200) {
+				throw new Error(`HTTP error! status: ${dictionaryContent.status}`);
+			}
+			
+			const dictionaryPath = `${this.manifest.dir}/dictionary.json`;
+			
+			await this.app.vault.adapter.write(dictionaryPath, dictionaryContent.text);
+			
+			await this.loadDictionary();
+			
+			new Notice('词典下载成功！');
+		} catch (error) {
+			new Notice('Failed to download dictionary');
+			console.error('Error downloading dictionary:', error);
 		}
 	}
 
