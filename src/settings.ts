@@ -1,18 +1,20 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
-import MyPlugin from "./main";
+import {AbstractInputSuggest, App, PluginSettingTab, Setting, TAbstractFile, TFolder} from "obsidian";
+import LinkDictPlugin from "./main";
 
-export interface MyPluginSettings {
-	mySetting: string;
+export interface LinkDictSettings {
+	folderPath: string;
+	replaceWithLink: boolean;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+export const DEFAULT_SETTINGS: LinkDictSettings = {
+	folderPath: 'LinkDict',
+	replaceWithLink: true
 }
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class LinkDictSettingTab extends PluginSettingTab {
+	plugin: LinkDictPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: LinkDictPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -23,14 +25,64 @@ export class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName('Word storage folder')
+			.setDesc('Folder where word notes will be saved')
+			.addText((text) => {
+				new FolderSuggest(this.app, text.inputEl);
+				text
+					.setPlaceholder('Enter folder path')
+					.setValue(this.plugin.settings.folderPath)
+					.onChange(async (value) => {
+						this.plugin.settings.folderPath = value;
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Replace selection with link')
+			.setDesc('Automatically replace selected text with a wikilink to created note (e.g. [[lemma|original]])')
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.replaceWithLink)
+					.onChange(async (value) => {
+						this.plugin.settings.replaceWithLink = value;
+						await this.plugin.saveSettings();
+					});
+			});
+	}
+}
+
+class FolderSuggest extends AbstractInputSuggest<string> {
+	inputEl: HTMLInputElement;
+
+	constructor(app: App, inputEl: HTMLInputElement) {
+		super(app, inputEl);
+		this.inputEl = inputEl;
+	}
+
+	getSuggestions(inputStr: string): string[] {
+		const abstractFiles = this.app.vault.getAllLoadedFiles();
+		const folders: string[] = [];
+		const lowerCaseInputStr = inputStr.toLowerCase();
+
+		abstractFiles.forEach((folder: TAbstractFile) => {
+			if (folder instanceof TFolder) {
+				folders.push(folder.path);
+			}
+		});
+
+		return folders.filter((folder: string) =>
+			folder.toLowerCase().contains(lowerCaseInputStr)
+		);
+	}
+
+	renderSuggestion(value: string, el: HTMLElement): void {
+		el.setText(value);
+	}
+
+	selectSuggestion(value: string): void {
+		this.inputEl.value = value;
+		this.inputEl.trigger('input');
+		this.close();
 	}
 }

@@ -1,99 +1,294 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import {Editor, MarkdownView, Menu, Notice, Plugin, TFile} from 'obsidian';
+import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings";
 
-// Remember to rename these classes and interfaces!
+interface DictEntry {
+	p?: string;
+	t?: string;
+	d?: string;
+	e?: string;
+	g?: string;
+}
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+interface DictionaryDB {
+	[key: string]: DictEntry;
+}
+
+export default class LinkDictPlugin extends Plugin {
+	settings: LinkDictSettings;
+	dictionary: DictionaryDB = new Object() as DictionaryDB;
 
 	async onload() {
 		await this.loadSettings();
+		await this.loadDictionary();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
+			id: 'define-selected-word',
+			name: 'Define selected word',
 			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+				const selectedText = editor.getSelection();
+				if (!selectedText || selectedText.trim() === '') {
+					new Notice('Please select a word to define');
+					return;
 				}
-				return false;
+				void this.searchAndGenerateNote(selectedText.trim().toLowerCase(), editor);
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor, view: MarkdownView) => {
+				const selectedText = editor.getSelection();
+				if (selectedText && selectedText.trim() !== '') {
+					const displayText = selectedText.length > 15 
+						? selectedText.substring(0, 15) + '...' 
+						: selectedText;
+					
+					menu.addItem((item) => {
+						item
+							.setTitle(`LinkDict: Define "${displayText}"`)
+							.setIcon('book-open')
+							.onClick(() => {
+								void this.searchAndGenerateNote(selectedText.trim().toLowerCase(), editor);
+							});
+					});
+				}
+			})
+		);
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
+		this.addSettingTab(new LinkDictSettingTab(this.app, this));
 	}
 
 	onunload() {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<LinkDictSettings>);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	async loadDictionary() {
+		try {
+			const dictionaryPath = `${this.app.vault.configDir}/plugins/link-dict/dictionary.json`;
+			const dictionaryContent = await this.app.vault.adapter.read(dictionaryPath);
+			this.dictionary = JSON.parse(dictionaryContent) as DictionaryDB;
+			new Notice(`Dictionary loaded: ${Object.keys(this.dictionary).length} entries`);
+		} catch (error) {
+			new Notice('Failed to load dictionary.json');
+			console.error('Error loading dictionary:', error);
+		}
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+	async searchAndGenerateNote(searchWord: string, editor?: Editor): Promise<void> {
+		let finalEntry: DictEntry | null = null;
+		let lemma = searchWord;
+
+		const entry = this.dictionary[searchWord];
+		if (!entry) {
+			new Notice(`Word "${searchWord}" not found in dictionary`);
+			return;
+		}
+
+		if (entry.e && entry.e.startsWith('0:')) {
+			const lemmaMatch = entry.e.match(/^0:([a-zA-Z]+)/);
+			if (lemmaMatch && lemmaMatch[1]) {
+				lemma = lemmaMatch[1];
+				const lemmaEntry = this.dictionary[lemma];
+				if (lemmaEntry) {
+					finalEntry = lemmaEntry;
+				} else {
+					new Notice(`Lemma "${lemma}" not found in dictionary`);
+					return;
+				}
+			}
+		} else {
+			finalEntry = entry;
+		}
+
+		if (!finalEntry) {
+			new Notice(`No entry found for "${lemma}"`);
+			return;
+		}
+
+		await this.createWordFile(lemma, finalEntry);
+
+		if (this.settings.replaceWithLink && editor) {
+			const selectedText = editor.getSelection();
+			if (selectedText && selectedText.trim() !== '') {
+				const originalText = selectedText.trim();
+				if (lemma === originalText) {
+					editor.replaceSelection(`[[${lemma}]]`);
+				} else {
+					editor.replaceSelection(`[[${lemma}|${originalText}]]`);
+				}
+			}
+		}
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	extractPosTags(translation: string | undefined): string[] {
+		const posTags: string[] = [];
+		if (!translation) return posTags;
+
+		const lines = translation.split('\\n');
+		const posRegex = /^([a-z]+)\./;
+
+		for (const line of lines) {
+			const match = line.match(posRegex);
+			if (match) {
+				const pos = match[1];
+				posTags.push(`pos/${pos}`);
+			}
+		}
+
+		return posTags;
+	}
+
+	extractAliases(entry: DictEntry): string[] {
+		const aliases: string[] = [];
+		if (!entry.e) return aliases;
+
+		const parts = entry.e.split('/');
+		for (const part of parts) {
+			if (part && part.includes(':')) {
+				const [, word] = part.split(':');
+				if (word && word.trim() !== '') {
+					aliases.push(word.trim());
+				}
+			}
+		}
+
+		return [...new Set(aliases)].sort();
+	}
+
+	formatExchange(exchange: string | undefined): string[] {
+		if (!exchange) return [];
+
+		const typeNames: { [key: string]: string } = {
+			p: '过去式',
+			d: '过去分词',
+			i: '现在分词',
+			3: '第三人称单数',
+			r: '形容词比较级',
+			t: '形容词最高级',
+			s: '名词复数形式',
+			0: '原型',
+			1: '变换形式'
+		};
+
+		const parts = exchange.split('/');
+		const formattedParts: string[] = [];
+
+		for (const part of parts) {
+			if (part && part.includes(':')) {
+				const [type, word] = part.split(':');
+				if (word && type && typeNames[type]) {
+					formattedParts.push(`- ${word} (${typeNames[type]})`);
+				}
+			}
+		}
+
+		return formattedParts;
+	}
+
+	generateMarkdown(word: string, entry: DictEntry): string {
+		const tags: string[] = ['vocabulary'];
+
+		const posTags = this.extractPosTags(entry.t);
+		tags.push(...posTags);
+
+		const uniqueTags = [...new Set(tags)];
+
+		const aliases = this.extractAliases(entry);
+
+		let yaml = '---\n';
+		yaml += 'tags:\n';
+		for (const tag of uniqueTags) {
+			yaml += `  - ${tag}\n`;
+		}
+		if (aliases.length > 0) {
+			yaml += 'aliases:\n';
+			for (const alias of aliases) {
+				yaml += `  - ${alias}\n`;
+			}
+		}
+		yaml += '---\n\n';
+
+		let content = `# ${word}\n\n`;
+
+		if (entry.p) {
+			content += `音标: /${entry.p}/\n\n`;
+		}
+
+		if (entry.t) {
+			const translation = entry.t.replace(/\\n/g, '\n');
+			const lines = translation.split('\n').filter(line => line.trim() !== '');
+			if (lines.length > 0) {
+				content += '## 释义\n\n';
+				for (const line of lines) {
+					const escapedLine = line.trim().replace(/\[/g, '\\[');
+					content += `- ${escapedLine}\n`;
+				}
+				content += '\n';
+			}
+		}
+
+		if (entry.d) {
+			const definition = entry.d.replace(/\\n/g, '\n');
+			const lines = definition.split('\n').filter(line => line.trim() !== '');
+			if (lines.length > 0) {
+				content += '## 英文释义\n\n';
+				for (const line of lines) {
+					const escapedLine = line.trim().replace(/\[/g, '\\[');
+					content += `- ${escapedLine}\n`;
+				}
+				content += '\n';
+			}
+		}
+
+		if (entry.e) {
+			const formattedExchange = this.formatExchange(entry.e);
+			if (formattedExchange.length > 0) {
+				content += '## 变形\n\n';
+				for (const item of formattedExchange) {
+					content += `${item}\n`;
+				}
+				content += '\n';
+			}
+		}
+
+		return yaml + content;
+	}
+
+	async createWordFile(word: string, entry: DictEntry) {
+		const folderPath = this.settings.folderPath;
+		const fileName = `${word}.md`;
+		const filePath = `${folderPath}/${fileName}`;
+
+		try {
+			const folderExists = await this.app.vault.adapter.exists(folderPath);
+			if (!folderExists) {
+				await this.app.vault.createFolder(folderPath);
+			}
+
+			const fileExists = await this.app.vault.adapter.exists(filePath);
+			const markdown = this.generateMarkdown(word, entry);
+
+			if (fileExists) {
+				const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
+				if (abstractFile instanceof TFile) {
+					await this.app.vault.modify(abstractFile, markdown);
+					new Notice(`Updated word file: ${fileName}`);
+				}
+			} else {
+				await this.app.vault.create(filePath, markdown);
+				new Notice(`Created word file: ${fileName}`);
+			}
+
+			await this.app.workspace.openLinkText(filePath, '', true);
+		} catch (error) {
+			new Notice(`Failed to create word file: ${fileName}`);
+			console.error('Error creating word file:', error);
+		}
 	}
 }
