@@ -1,5 +1,8 @@
-import {Editor, MarkdownView, Menu, Notice, Plugin, requestUrl, TFile} from 'obsidian';
+import {Editor, MarkdownView, Menu, Notice, Plugin, requestUrl, TFile, WorkspaceLeaf} from 'obsidian';
 import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings";
+import {DictionaryView} from "./view";
+
+export const VIEW_TYPE_LINK_DICT = 'link-dict-view';
 
 interface DictEntry {
 	p?: string;
@@ -19,6 +22,20 @@ export default class LinkDictPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		await this.loadDictionary();
+
+		this.registerView(VIEW_TYPE_LINK_DICT, (leaf) => new DictionaryView(leaf, this));
+
+		this.addRibbonIcon('book-open', 'Open dictionary view', () => {
+			void this.activateView();
+		});
+
+		this.addCommand({
+			id: 'open-dictionary-view',
+			name: 'Open dictionary view',
+			callback: () => {
+				void this.activateView();
+			}
+		});
 
 		this.addCommand({
 			id: 'define-selected-word',
@@ -304,6 +321,26 @@ export default class LinkDictPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Failed to create word file: ${fileName}`);
 			console.error('Error creating word file:', error);
+		}
+	}
+
+	async activateView() {
+		const { workspace } = this.app;
+
+		let leaf: WorkspaceLeaf | null = null;
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_LINK_DICT);
+
+		if (leaves.length > 0) {
+			leaf = leaves[0] ?? null;
+		} else {
+			leaf = workspace.getRightLeaf(false);
+			if (leaf) {
+				await leaf.setViewState({ type: VIEW_TYPE_LINK_DICT, active: true });
+			}
+		}
+
+		if (leaf) {
+			void workspace.revealLeaf(leaf);
 		}
 	}
 }

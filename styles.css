@@ -1,8 +1,48 @@
-/*
+.dict-view-content {
+	padding: 16px;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.dict-search-bar {
+	margin-bottom: 12px;
+	display: flex;
+	gap: 8px;
+}
 
-If your plugin does not need CSS, delete this file.
+.dict-search-input {
+	flex: 1;
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background-color: var(--background-modifier-form-field);
+	color: var(--text-normal);
+}
 
-*/
+.dict-search-input:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+.dict-search-button {
+	padding: 6px 16px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.dict-search-button:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.dict-result-container {
+	min-height: 100px;
+}
+
+.link-dict-message {
+	color: var(--text-muted);
+}
+
+.link-dict-error {
+	color: var(--text-error);
+}
