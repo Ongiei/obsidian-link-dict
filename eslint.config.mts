@@ -22,6 +22,12 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		files: ['src/popover.ts'],
+		rules: {
+			'obsidianmd/no-static-styles-assignment': 'off',
+		},
+	},
 	globalIgnores([
 		"node_modules",
 		"dist",
