@@ -3,12 +3,10 @@ import LinkDictPlugin from "./main";
 
 export interface LinkDictSettings {
 	folderPath: string;
-	replaceWithLink: boolean;
 }
 
 export const DEFAULT_SETTINGS: LinkDictSettings = {
-	folderPath: 'LinkDict',
-	replaceWithLink: true
+	folderPath: 'LinkDict'
 }
 
 export class LinkDictSettingTab extends PluginSettingTab {
@@ -35,18 +33,6 @@ export class LinkDictSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.folderPath)
 					.onChange(async (value) => {
 						this.plugin.settings.folderPath = value;
-						await this.plugin.saveSettings();
-					});
-			});
-
-		new Setting(containerEl)
-			.setName('Replace selection with link')
-			.setDesc('Automatically replace selected text with a wikilink to created note (e.g. [[lemma|original]])')
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.settings.replaceWithLink)
-					.onChange(async (value) => {
-						this.plugin.settings.replaceWithLink = value;
 						await this.plugin.saveSettings();
 					});
 			});

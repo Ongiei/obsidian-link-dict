@@ -42,7 +42,7 @@ export default class LinkDictPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'define-selected-word',
-			name: 'Define selected word',
+			name: 'Create lemma note',
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				const selectedText = editor.getSelection();
 				if (!selectedText || selectedText.trim() === '') {
@@ -53,10 +53,42 @@ export default class LinkDictPlugin extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'lookup-selection',
+			name: 'Look up selection',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				const selectedText = editor.getSelection();
+				if (!selectedText || selectedText.trim() === '') {
+					new Notice('Please select a word to look up');
+					return;
+				}
+				const result = this.findEntry(selectedText, false);
+				if (result) {
+					new DefinitionPopover(this, editor, selectedText, result.entry);
+				} else {
+					new Notice(`No definition found for: ${selectedText}`);
+				}
+			}
+		});
+
 		this.registerEvent(
 			this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor, view: MarkdownView) => {
 				const selection = editor.getSelection();
 				console.debug('LinkDict: Editor menu triggered. Selection:', selection);
+
+				menu.addItem((item) => {
+					item
+						.setTitle('Create lemma note')
+						.setIcon('book-open')
+						.onClick(() => {
+							if (!selection || selection.trim() === '') {
+								new Notice('Please select a word first.');
+								return;
+							}
+							console.debug('LinkDict: Creating lemma note for:', selection);
+							void this.searchAndGenerateNote(selection, editor);
+						});
+				});
 
 				menu.addItem((item) => {
 					item
@@ -76,20 +108,6 @@ export default class LinkDictPlugin extends Plugin {
 								console.debug('LinkDict: No entry found for:', selection);
 								new Notice(`No definition found for: ${selection}`);
 							}
-						});
-				});
-
-				menu.addItem((item) => {
-					item
-						.setTitle('Create lemma note')
-						.setIcon('book-open')
-						.onClick(() => {
-							if (!selection || selection.trim() === '') {
-								new Notice('Please select a word first.');
-								return;
-							}
-							console.debug('LinkDict: Creating lemma note for:', selection);
-							void this.searchAndGenerateNote(selection, editor);
 						});
 				});
 			})
@@ -194,7 +212,7 @@ export default class LinkDictPlugin extends Plugin {
 
 		await this.createWordFile(lemma, entry, searchWord);
 
-		if (this.settings.replaceWithLink && editor) {
+		if (editor) {
 			const selectedText = editor.getSelection();
 			if (selectedText && selectedText.trim() !== '') {
 				const originalText = selectedText.trim();
