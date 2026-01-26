@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "obsidian-link-dict",
+	"version": "1.0.2",
+	"description": "A lemma-first offline dictionary plugin for Obsidian. Look up words and generate markdown notes with automatic lemma redirection.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
