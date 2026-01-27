@@ -68,6 +68,20 @@ export class DictionaryView extends ItemView {
 		});
 		setIcon(searchButton, 'search');
 
+		// 创建笔记按钮
+		const createNoteButton = searchBarEl.createEl('button', {
+			cls: 'link-dict-search-btn',
+			attr: { 'aria-label': 'Create lemma note' }
+		});
+		setIcon(createNoteButton, 'file-plus');
+		setTooltip(createNoteButton, 'Create lemma note');
+		createNoteButton.addEventListener('click', () => {
+			const word = this.searchInput.value.trim();
+			if (word) {
+				void this.plugin.searchAndGenerateNote(word);
+			}
+		});
+
 		// 创建结果容器
 		this.resultContainer = contentEl.createEl('div', { cls: 'dict-result-container' });
 
@@ -175,15 +189,6 @@ export class DictionaryView extends ItemView {
 
 			headerLeft.appendChild(phoneticContainer);
 		}
-
-		// 创建笔记按钮
-		const createNoteBtn = headerContainer.createEl('button', { cls: 'dict-create-note-btn' });
-		setIcon(createNoteBtn, 'file-plus');
-		setTooltip(createNoteBtn, 'Create Lemma Note');
-		createNoteBtn.addEventListener('click', () => {
-			void this.plugin.searchAndGenerateNote(word);
-		});
-		headerContainer.appendChild(createNoteBtn);
 
 		// 显示释义列表
 		if (entry.definitions.length > 0) {
