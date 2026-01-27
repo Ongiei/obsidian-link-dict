@@ -136,11 +136,9 @@ export class YoudaoService {
 		};
 
 		if (definitions.length > 0 || ph_en || ph_am) {
-			console.debug('YoudaoService: Found entry for', originalWord, entry);
 			return entry;
 		}
 
-		console.debug('YoudaoService: No entry found for', originalWord);
 		return null;
 	}
 }

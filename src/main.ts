@@ -42,7 +42,7 @@ export default class LinkDictPlugin extends Plugin {
 		this.addCommand({
 			id: 'define-selected-word',
 			name: 'Create lemma note',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
+			editorCallback: (editor: Editor, _view: MarkdownView) => {
 				const selectedText = editor.getSelection();
 				if (!selectedText || selectedText.trim() === '') {
 					new Notice('Please select a word to define');
@@ -55,7 +55,7 @@ export default class LinkDictPlugin extends Plugin {
 		this.addCommand({
 			id: 'lookup-selection',
 			name: 'Look up selection',
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
+			editorCallback: async (editor: Editor, _view: MarkdownView) => {
 				const selectedText = editor.getSelection();
 				if (!selectedText || selectedText.trim() === '') {
 					new Notice('Please select a word to look up');
@@ -73,9 +73,8 @@ export default class LinkDictPlugin extends Plugin {
 		});
 
 		this.registerEvent(
-			this.app.workspace.on('editor-menu', async (menu: Menu, editor: Editor, view: MarkdownView) => {
+			this.app.workspace.on('editor-menu', async (menu: Menu, editor: Editor, _view: MarkdownView) => {
 				const selection = editor.getSelection();
-				console.debug('LinkDict: Editor menu triggered. Selection:', selection);
 
 				menu.addItem((item) => {
 					item
@@ -86,7 +85,6 @@ export default class LinkDictPlugin extends Plugin {
 								new Notice('Please select a word first.');
 								return;
 							}
-							console.debug('LinkDict: Creating lemma note for:', selection);
 							void this.searchAndGenerateNote(selection, editor);
 						});
 				});
@@ -100,14 +98,11 @@ export default class LinkDictPlugin extends Plugin {
 								new Notice('Please select a word first.');
 								return;
 							}
-							console.debug('LinkDict: Looking up word:', selection);
 							const popover = new DefinitionPopover(this, editor, selection);
 							const result = await this.findEntry(selection, false);
 							if (result) {
-								console.debug('LinkDict: Entry found, creating popover');
 								popover.setEntry(result.entry);
 							} else {
-								console.debug('LinkDict: No entry found for:', selection);
 								popover.close();
 								new Notice(`No definition found for: ${selection}`);
 							}

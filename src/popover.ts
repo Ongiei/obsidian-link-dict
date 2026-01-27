@@ -11,18 +11,14 @@ export class DefinitionPopover {
 		private originalWord: string,
 		entry?: DictEntry
 	) {
-		console.debug('DefinitionPopover: Creating popover for:', originalWord);
 		this.entry = entry ?? null;
 		this.createPopover();
 	}
 
 	private createPopover() {
-		console.debug('DefinitionPopover: Starting createPopover');
-
 		this.removeExistingPopover();
 
 		const cursorFrom = this.editor.getCursor('from');
-		console.debug('DefinitionPopover: Cursor from:', cursorFrom);
 
 		const editorWithCm = this.editor as unknown as { cm: { coordsAtPos: (pos: number) => { top: number; left: number; bottom: number; height: number; right: number } | null } };
 		const cm = editorWithCm.cm;
@@ -30,17 +26,12 @@ export class DefinitionPopover {
 		const coords = cm.coordsAtPos(pos);
 
 		if (!coords) {
-			console.debug('DefinitionPopover: No coords available');
 			return;
 		}
-
-		console.debug('DefinitionPopover: Coords:', coords);
 
 		this.overlay = document.createElement('div');
 		this.overlay.className = 'link-dict-popover';
 		document.body.appendChild(this.overlay);
-
-		console.debug('DefinitionPopover: Overlay appended to body');
 
 		const offset = 15;
 		const estimatedWidth = 320;
@@ -82,19 +73,15 @@ export class DefinitionPopover {
 		this.overlay.classList.remove('popover-origin-top-left', 'popover-origin-top-right', 'popover-origin-bottom-left', 'popover-origin-bottom-right');
 		this.overlay.classList.add(`popover-origin-${originV}-${originH}`);
 
-		console.debug('DefinitionPopover: Final position - origin:', `${originV}-${originH}`);
-
 		this.renderContent();
 
 		setTimeout(() => {
 			this.overlay.classList.add('active');
-			console.debug('DefinitionPopover: Adding mousedown listener');
 			window.addEventListener('mousedown', this.onWindowClick, { capture: true });
 		}, 10);
 	}
 
 	public setEntry(entry: DictEntry) {
-		console.debug('DefinitionPopover: Setting entry');
 		this.entry = entry;
 		this.renderContent();
 	}
@@ -102,14 +89,11 @@ export class DefinitionPopover {
 	private removeExistingPopover() {
 		const existing = document.querySelector('.link-dict-popover');
 		if (existing) {
-			console.debug('DefinitionPopover: Removing existing popover');
 			existing.remove();
 		}
 	}
 
 	private renderContent() {
-		console.debug('DefinitionPopover: Rendering content');
-
 		this.overlay.innerHTML = '';
 
 		if (!this.entry) {
@@ -117,7 +101,6 @@ export class DefinitionPopover {
 			loading.className = 'popover-loading';
 			loading.textContent = 'Loading...';
 			this.overlay.appendChild(loading);
-			console.debug('DefinitionPopover: Showing loading state');
 			return;
 		}
 
@@ -174,7 +157,6 @@ export class DefinitionPopover {
 		setTooltip(createNoteBtn, 'Create Lemma Note');
 		createNoteBtn.addEventListener('click', () => {
 			void (async () => {
-				console.debug('DefinitionPopover: Button clicked, creating note');
 				await this.plugin.searchAndGenerateNote(this.originalWord);
 				this.close();
 			})();
@@ -241,20 +223,15 @@ export class DefinitionPopover {
 
 			this.overlay.appendChild(footer);
 		}
-
-		console.debug('DefinitionPopover: Content rendered');
 	}
 
 	private onWindowClick = (event: MouseEvent) => {
-		console.debug('DefinitionPopover: Window clicked, target:', event.target);
 		if (!this.overlay.contains(event.target as Node)) {
-			console.debug('DefinitionPopover: Click outside, closing');
 			this.close();
 		}
 	};
 
 	public close() {
-		console.debug('DefinitionPopover: Closing popover');
 		if (this.overlay) {
 			this.overlay.remove();
 		}
