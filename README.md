@@ -10,7 +10,7 @@
 - **悬浮查词**：选中文本后通过右键菜单快速查看单词释义。
 - **侧边栏视图**：提供独立的侧边栏词典视图，方便持续查词。
 
-![PixPin_2026-01-26_01-55-08](https://github.com/user-attachments/assets/4153252a-f099-4097-acf5-37284dc6c36d)
+https://github.com/user-attachments/assets/e1159865-21cc-4f64-8e77-52b4dc0a6c2f
 
 ## 安装
 
