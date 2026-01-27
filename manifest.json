@@ -1,7 +1,7 @@
 {
 	"id": "link-dict",
 	"name": "LinkDict",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "A lemma-first online dictionary plugin for Obsidian using Youdao. Look up words and generate markdown notes with automatic lemma redirection.",
 	"author": "Ongiei",
