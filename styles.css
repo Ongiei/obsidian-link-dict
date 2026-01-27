@@ -3,6 +3,22 @@
 	font-size: 0.9em;
 }
 
+.link-dict-sidebar-view {
+	padding: 16px 20px;
+}
+
+.link-dict-sidebar-view .link-dict-search-box {
+	width: 100%;
+	padding: 0;
+	margin-bottom: 12px;
+	display: flex;
+	gap: 6px;
+}
+
+.link-dict-sidebar-view .link-dict-search-input {
+	flex-grow: 1;
+}
+
 .link-dict-search-box {
 	display: flex;
 	gap: 8px;
@@ -50,6 +66,28 @@
 	align-items: flex-start;
 	width: 100%;
 	margin-bottom: 8px;
+}
+
+.link-dict-sidebar-view .dict-header-container {
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 2px !important;
+	padding-bottom: 0 !important;
+	padding-right: 2px;
+}
+
+.link-dict-sidebar-view .dict-header-left {
+	flex-grow: 1;
+}
+
+.link-dict-sidebar-view .dict-create-note-btn {
+	height: 28px;
+	width: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .dict-header-left {
@@ -130,6 +168,10 @@
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+}
+
+.link-dict-sidebar-view .dict-definitions-list {
+	margin-top: 0 !important;
 }
 
 .dict-view-content .dict-definitions-list .dict-def-row {

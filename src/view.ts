@@ -27,6 +27,8 @@ export class DictionaryView extends ItemView {
 		this.containerEl.empty();
 
 		const contentEl = this.containerEl.createEl('div', { cls: 'dict-view-content' });
+		contentEl.classList.add('link-dict-sidebar-view');
+		contentEl.classList.remove('link-dict-popover');
 
 		const searchBarEl = contentEl.createEl('div', { cls: 'link-dict-search-box' });
 
