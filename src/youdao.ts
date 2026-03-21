@@ -1,49 +1,50 @@
 import {requestUrl} from 'obsidian';
+import {DictEntry} from './types';
 
-// 有道词典API响应接口
 interface YoudaoJsonResponse {
 	ec?: {
 		word?: {
-			usphone?: string;  // 美式音标
-			ukphone?: string;  // 英式音标
-			usspeech?: string; // 美式发音URL
-			ukspeech?: string; // 英式发音URL
+			usphone?: string;
+			ukphone?: string;
+			usspeech?: string;
+			ukspeech?: string;
 			trs?: {
 				tr?: {
-					pos?: string;  // 词性
+					pos?: string;
 					l?: {
-						i?: string[];  // 释义
+						i?: string[];
 					};
 				}[];
 			}[];
 			wfs?: {
 				wf?: {
-					name: string;  // 词形变化名称
-					value: string; // 词形变化值
+					name: string;
+					value: string;
 				};
 			}[];
 		}[];
-		exam_type?: string[];  // 考试标签
+		exam_type?: string[];
+	};
+	web_trans?: {
+		'web-translation'?: {
+			'@key'?: string;
+			key?: string;
+			trans?: {
+				value?: string;
+			}[];
+		}[];
+	};
+	blng_sents_part?: {
+		'sentence-pair'?: {
+			sentence?: string;
+			'sentence-translation'?: string;
+		}[];
 	};
 }
 
-// 词典条目接口
-interface DictEntry {
-	word: string;  // 单词
-	ph_en: string;  // 英式音标
-	ph_am: string;  // 美式音标
-	mp3_en: string;  // 英式发音URL
-	mp3_am: string;  // 美式发音URL
-	definitions: { pos: string; trans: string }[];  // 释义列表
-	tags: string[];  // 标签
-	exchange: { name: string; value: string }[];  // 词形变化
-}
-
-// 有道词典服务类
 export class YoudaoService {
 	private static readonly BASE_URL = 'https://dict.youdao.com/jsonapi';
 
-	// 查询单词
 	static async lookup(word: string): Promise<DictEntry | null> {
 		try {
 			const url = `${this.BASE_URL}?q=${encodeURIComponent(word)}`;
@@ -68,9 +69,8 @@ export class YoudaoService {
 		}
 	}
 
-	// 解析JSON响应数据
 	private static parseJson(data: YoudaoJsonResponse, originalWord: string): DictEntry | null {
-		if (!data.ec || !data.ec.word || data.ec.word.length === 0) {
+		if (!data?.ec?.word || data.ec.word.length === 0) {
 			return null;
 		}
 
@@ -79,54 +79,52 @@ export class YoudaoService {
 			return null;
 		}
 
-		// 获取音标
-		const ph_en = entryData.ukphone || "";
-		const ph_am = entryData.usphone || "";
+		const ph_en = entryData.ukphone ?? "";
+		const ph_am = entryData.usphone ?? "";
 
-		// 获取发音URL
 		let mp3_en = "";
 		let mp3_am = "";
 		if (entryData.ukspeech) {
 			mp3_en = entryData.ukspeech.startsWith('http') 
 				? entryData.ukspeech 
-				: `http://dict.youdao.com/dictvoice?audio=${entryData.ukspeech}`;
+				: `https://dict.youdao.com/dictvoice?audio=${entryData.ukspeech}`;
 		}
 		if (entryData.usspeech) {
 			mp3_am = entryData.usspeech.startsWith('http') 
 				? entryData.usspeech 
-				: `http://dict.youdao.com/dictvoice?audio=${entryData.usspeech}`;
+				: `https://dict.youdao.com/dictvoice?audio=${entryData.usspeech}`;
 		}
 
-		// 解析释义
 		const definitions: { pos: string; trans: string }[] = [];
 		if (entryData.trs) {
 			entryData.trs.forEach(tr => {
-				if (tr.tr && tr.tr[0] && tr.tr[0].l && tr.tr[0].l.i && tr.tr[0].l.i[0]) {
-					let pos = tr.tr[0].pos || "";
-					let trans = tr.tr[0].l.i[0];
+				try {
+					if (tr?.tr?.[0]?.l?.i?.[0]) {
+						let pos = tr.tr[0].pos ?? "";
+						let trans = tr.tr[0].l.i[0];
 
-					// 如果没有词性，尝试从释义中提取
-					if (!pos) {
-						const posMatch = trans.match(/^([a-z]+\.\s+)/i);
-						if (posMatch && posMatch[1]) {
-							pos = posMatch[1].trim();
-							trans = trans.substring(posMatch[0].length);
+						if (!pos) {
+							const posMatch = trans.match(/^([a-z]+\.\s+)/i);
+							if (posMatch?.[1]) {
+								pos = posMatch[1].trim();
+								trans = trans.substring(posMatch[0].length);
+							}
 						}
-					}
 
-					definitions.push({ pos, trans });
+						definitions.push({ pos, trans });
+					}
+				} catch (e) {
+					console.warn('Error parsing definition:', e);
 				}
 			});
 		}
 
-		// 获取标签
-		const tags = data.ec.exam_type || [];
+		const tags = data.ec.exam_type ?? [];
 
-		// 解析词形变化
 		const exchange: { name: string; value: string }[] = [];
 		if (entryData.wfs) {
 			entryData.wfs.forEach(item => {
-				if (item.wf) {
+				if (item?.wf?.name && item?.wf?.value) {
 					exchange.push({
 						name: item.wf.name,
 						value: item.wf.value
@@ -135,7 +133,6 @@ export class YoudaoService {
 			});
 		}
 
-		// 构建词典条目
 		const entry: DictEntry = {
 			word: originalWord,
 			ph_en,
@@ -147,7 +144,35 @@ export class YoudaoService {
 			exchange
 		};
 
-		// 至少有释义或音标才返回
+		try {
+			const webTransRaw = data.web_trans?.['web-translation'];
+			if (webTransRaw && Array.isArray(webTransRaw)) {
+				const queryLower = originalWord.toLowerCase().trim();
+				entry.webTrans = webTransRaw
+					.map((item: any) => ({
+						key: item['@key'] ?? item.key,
+						value: item.trans?.map((t: any) => t?.value).filter(Boolean) ?? []
+					}))
+					.filter(item => {
+						const itemKey = item.key?.toLowerCase().trim();
+						return itemKey === queryLower && item.value.length > 0;
+					});
+			}
+
+			const bilingualRaw = data.blng_sents_part?.['sentence-pair'];
+			if (bilingualRaw && Array.isArray(bilingualRaw)) {
+				entry.bilingualExamples = bilingualRaw
+					.slice(0, 5)
+					.map((item: any) => ({
+						eng: item.sentence ?? '',
+						chn: item['sentence-translation'] ?? ''
+					}))
+					.filter(item => item.eng && item.chn);
+			}
+		} catch (error) {
+			console.error('Extended info parsing failed:', error);
+		}
+
 		if (definitions.length > 0 || ph_en || ph_am) {
 			return entry;
 		}

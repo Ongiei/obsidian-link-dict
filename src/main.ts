@@ -1,23 +1,13 @@
-import {Editor, MarkdownView, Menu, Notice, Plugin, TFile, WorkspaceLeaf} from 'obsidian';
+import {Editor, MarkdownView, Menu, Notice, Plugin, TFile} from 'obsidian';
 import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings";
 import {DictionaryView} from "./view";
 import {DefinitionPopover} from "./popover";
 import {YoudaoService} from "./youdao";
+import {DictEntry} from "./types";
 
 import winkLemmatizer from 'wink-lemmatizer';
 
 export const VIEW_TYPE_LINK_DICT = 'link-dict-view';
-
-export interface DictEntry {
-	word: string;
-	ph_en: string;
-	ph_am: string;
-	mp3_en: string;
-	mp3_am: string;
-	definitions: { pos: string; trans: string }[];
-	tags: string[];
-	exchange: { name: string; value: string }[];
-}
 
 export default class LinkDictPlugin extends Plugin {
 	settings: LinkDictSettings;
@@ -118,7 +108,7 @@ export default class LinkDictPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<LinkDictSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
 	async saveSettings() {
@@ -251,6 +241,24 @@ export default class LinkDictPlugin extends Plugin {
 			content += '\n';
 		}
 
+		if (entry.webTrans && entry.webTrans.length > 0) {
+			content += '## 网络释义\n\n';
+			for (const item of entry.webTrans) {
+				const numberedValues = item.value.map((v, i) => `${i + 1}. ${v}`).join(' ');
+				content += `- **${item.key}**: ${numberedValues}\n`;
+			}
+			content += '\n';
+		}
+
+		if (entry.bilingualExamples && entry.bilingualExamples.length > 0) {
+			content += '## 例句\n\n';
+			for (const example of entry.bilingualExamples) {
+				content += `- ${example.eng}\n`;
+				content += `  - ${example.chn}\n`;
+			}
+			content += '\n';
+		}
+
 		if (entry.exchange.length > 0) {
 			content += '## 变形\n\n';
 			for (const item of entry.exchange) {
@@ -296,13 +304,10 @@ export default class LinkDictPlugin extends Plugin {
 
 	async activateView() {
 		const { workspace } = this.app;
-
-		let leaf: WorkspaceLeaf | null = null;
 		const leaves = workspace.getLeavesOfType(VIEW_TYPE_LINK_DICT);
 
-		if (leaves.length > 0) {
-			leaf = leaves[0] ?? null;
-		} else {
+		let leaf = leaves[0];
+		if (!leaf) {
 			leaf = workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({ type: VIEW_TYPE_LINK_DICT, active: true });

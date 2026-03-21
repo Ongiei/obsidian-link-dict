@@ -1,5 +1,6 @@
 import {Editor, setIcon, setTooltip} from 'obsidian';
-import LinkDictPlugin, {DictEntry} from './main';
+import LinkDictPlugin from './main';
+import {DictEntry, EditorWithCM} from './types';
 
 export class DefinitionPopover {
 	private overlay: HTMLElement;
@@ -19,11 +20,9 @@ export class DefinitionPopover {
 		this.removeExistingPopover();
 
 		const cursorFrom = this.editor.getCursor('from');
-
-		const editorWithCm = this.editor as unknown as { cm: { coordsAtPos: (pos: number) => { top: number; left: number; bottom: number; height: number; right: number } | null } };
-		const cm = editorWithCm.cm;
+		const cm = (this.editor as EditorWithCM).cm;
 		const pos = this.editor.posToOffset(cursorFrom);
-		const coords = cm.coordsAtPos(pos);
+		const coords = cm?.coordsAtPos(pos);
 
 		if (!coords) {
 			return;

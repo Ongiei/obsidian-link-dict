@@ -1,5 +1,6 @@
 import {ItemView, WorkspaceLeaf, setIcon, setTooltip} from 'obsidian';
-import LinkDictPlugin, {DictEntry} from './main';
+import LinkDictPlugin from './main';
+import {DictEntry} from './types';
 
 /**
  * 字典视图类
