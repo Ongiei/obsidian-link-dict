@@ -16,7 +16,7 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === "production");
 const outDir = resolve(__dirname, 'vault/.obsidian/plugins/link-dict');
-const outFile = resolve(outDir, 'main.js');
+const outfile = resolve(outDir, 'main.js');
 
 if (!existsSync(outDir)) {
 	mkdirSync(outDir, { recursive: true });
@@ -61,7 +61,7 @@ function copyRuntimeFiles() {
 if (prod) {
 	await context.rebuild();
 	copyRuntimeFiles();
-	console.log(`Build complete: ${outFile}`);
+	console.log(`Build complete: ${outfile}`);
 	process.exit(0);
 } else {
 	copyRuntimeFiles();
