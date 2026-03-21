@@ -1,6 +1,17 @@
 import {requestUrl} from 'obsidian';
 import {DictEntry} from './types';
 
+interface WebTranslationItem {
+	'@key'?: string;
+	key?: string;
+	trans?: { value?: string }[];
+}
+
+interface SentencePair {
+	sentence?: string;
+	'sentence-translation'?: string;
+}
+
 interface YoudaoJsonResponse {
 	ec?: {
 		word?: {
@@ -26,19 +37,10 @@ interface YoudaoJsonResponse {
 		exam_type?: string[];
 	};
 	web_trans?: {
-		'web-translation'?: {
-			'@key'?: string;
-			key?: string;
-			trans?: {
-				value?: string;
-			}[];
-		}[];
+		'web-translation'?: WebTranslationItem[];
 	};
 	blng_sents_part?: {
-		'sentence-pair'?: {
-			sentence?: string;
-			'sentence-translation'?: string;
-		}[];
+		'sentence-pair'?: SentencePair[];
 	};
 }
 
@@ -149,9 +151,9 @@ export class YoudaoService {
 			if (webTransRaw && Array.isArray(webTransRaw)) {
 				const queryLower = originalWord.toLowerCase().trim();
 				entry.webTrans = webTransRaw
-					.map((item: any) => ({
-						key: item['@key'] ?? item.key,
-						value: item.trans?.map((t: any) => t?.value).filter(Boolean) ?? []
+					.map((item: WebTranslationItem) => ({
+						key: item['@key'] ?? item.key ?? '',
+						value: item.trans?.map((t) => t?.value).filter((v): v is string => Boolean(v)) ?? []
 					}))
 					.filter(item => {
 						const itemKey = item.key?.toLowerCase().trim();
@@ -163,7 +165,7 @@ export class YoudaoService {
 			if (bilingualRaw && Array.isArray(bilingualRaw)) {
 				entry.bilingualExamples = bilingualRaw
 					.slice(0, 5)
-					.map((item: any) => ({
+					.map((item: SentencePair) => ({
 						eng: item.sentence ?? '',
 						chn: item['sentence-translation'] ?? ''
 					}))

@@ -54,7 +54,9 @@ export class LinkDictSettingTab extends PluginSettingTab {
 					});
 			});
 
-		containerEl.createEl('h3', { text: 'Display Options' });
+		new Setting(containerEl)
+			.setName('Display options')
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName('Show web translations')

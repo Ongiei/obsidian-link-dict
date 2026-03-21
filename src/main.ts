@@ -50,7 +50,7 @@ export default class LinkDictPlugin extends Plugin {
 				}
 				const word = sanitizeWord(selectedText);
 				if (!isValidWord(word)) {
-					new Notice('Please select a valid English word');
+					new Notice('please select a valid English word');
 					return;
 				}
 				void this.searchAndGenerateNote(word, editor);
@@ -68,7 +68,7 @@ export default class LinkDictPlugin extends Plugin {
 				}
 				const word = sanitizeWord(selectedText);
 				if (!isValidWord(word)) {
-					new Notice('Please select a valid English word');
+					new Notice('please select a valid English word');
 					return;
 				}
 				const popover = new DefinitionPopover(this, editor, word);
@@ -97,7 +97,7 @@ export default class LinkDictPlugin extends Plugin {
 							}
 							const word = sanitizeWord(selection);
 							if (!isValidWord(word)) {
-								new Notice('Please select a valid English word');
+								new Notice('please select a valid English word');
 								return;
 							}
 							void this.searchAndGenerateNote(word, editor);
@@ -115,7 +115,7 @@ export default class LinkDictPlugin extends Plugin {
 							}
 							const word = sanitizeWord(selection);
 							if (!isValidWord(word)) {
-								new Notice('Please select a valid English word');
+								new Notice('please select a valid English word');
 								return;
 							}
 							const popover = new DefinitionPopover(this, editor, word);
@@ -141,11 +141,12 @@ export default class LinkDictPlugin extends Plugin {
 		}
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	async loadSettings(): Promise<void> {
+		const loaded = await this.loadData();
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded as Partial<LinkDictSettings>);
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 
@@ -159,17 +160,17 @@ export default class LinkDictPlugin extends Plugin {
 		let lookupWord = searchWord;
 
 		if (useLemmatizer) {
-			const nounLemma = winkLemmatizer.noun(searchWord);
+			const nounLemma: string = winkLemmatizer.noun(searchWord);
 			if (nounLemma !== searchWord) {
 				lookupWord = nounLemma;
 			}
 
-			const verbLemma = winkLemmatizer.verb(searchWord);
+			const verbLemma: string = winkLemmatizer.verb(searchWord);
 			if (verbLemma !== searchWord && verbLemma !== nounLemma) {
 				lookupWord = verbLemma;
 			}
 
-			const adjectiveLemma = winkLemmatizer.adjective(searchWord);
+			const adjectiveLemma: string = winkLemmatizer.adjective(searchWord);
 			if (adjectiveLemma !== searchWord && adjectiveLemma !== nounLemma && adjectiveLemma !== verbLemma) {
 				lookupWord = adjectiveLemma;
 			}
@@ -276,7 +277,7 @@ export default class LinkDictPlugin extends Plugin {
 		}
 
 		if (this.settings.showWebTrans && entry.webTrans && entry.webTrans.length > 0) {
-			content += '## Web Translations\n\n';
+			content += '## Web translations\n\n';
 			for (const item of entry.webTrans) {
 				const numberedValues = item.value.map((v, i) => `${i + 1}. ${v}`).join(' ');
 				content += `- **${item.key}**: ${numberedValues}\n`;
@@ -294,7 +295,7 @@ export default class LinkDictPlugin extends Plugin {
 		}
 
 		if (entry.exchange.length > 0) {
-			content += '## Word Forms\n\n';
+			content += '## Word forms\n\n';
 			for (const item of entry.exchange) {
 				content += `- ${item.name}: ${item.value}\n`;
 			}
@@ -304,7 +305,7 @@ export default class LinkDictPlugin extends Plugin {
 		return yaml + content;
 	}
 
-	async createWordFile(word: string, entry: DictEntry, originalWord?: string) {
+	async createWordFile(word: string, entry: DictEntry, originalWord?: string): Promise<void> {
 		const folderPath = this.settings.folderPath;
 		const fileName = `${word}.md`;
 		const filePath = `${folderPath}/${fileName}`;
@@ -336,7 +337,7 @@ export default class LinkDictPlugin extends Plugin {
 		}
 	}
 
-	async activateView() {
+	async activateView(): Promise<void> {
 		const { workspace } = this.app;
 		const leaves = workspace.getLeavesOfType(VIEW_TYPE_LINK_DICT);
 
