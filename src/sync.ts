@@ -2,7 +2,6 @@ import { App, Notice, TFile } from 'obsidian';
 import { EudicService } from './eudic';
 import { LinkDictSettings } from './settings';
 import { LedgerService } from './ledger';
-import { YoudaoService } from './youdao';
 import { DictEntry } from './types';
 import { getLemma } from './lemmatizer';
 import { t } from './i18n';
