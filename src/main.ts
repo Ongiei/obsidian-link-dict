@@ -378,18 +378,9 @@ export default class LinkDictPlugin extends Plugin {
 	private async executeSync(dryRunResult: import('./sync').SyncDryRunResult): Promise<void> {
 		if (!this.syncService) return;
 
-		let progressNotice: Notice | null = null;
-
 		const result = await this.syncService.executeSync(dryRunResult, (current, total, word) => {
-			if (progressNotice) {
-				progressNotice.hide();
-			}
-			progressNotice = new Notice(t('notice_syncProgress', { current, total, word }), 0);
+			new Notice(t('notice_syncProgress', { current, total, word }), 3000);
 		});
-
-		if (progressNotice) {
-			progressNotice.hide();
-		}
 
 		if (result.success) {
 			new Notice(t('notice_syncCompletedWithStats', {
@@ -397,7 +388,7 @@ export default class LinkDictPlugin extends Plugin {
 				downloaded: result.downloaded,
 			}));
 		} else if (result.errors.length > 0) {
-			new Notice(t('notice_syncFailed', { error: result.errors[0] }));
+			new Notice(t('notice_syncFailed', { error: result.errors[0] ?? 'Unknown error' }));
 		}
 	}
 

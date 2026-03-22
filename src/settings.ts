@@ -1,4 +1,4 @@
-import {AbstractInputSuggest, App, PluginSettingTab, Setting, TAbstractFile, TFolder} from "obsidian";
+import {AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, TAbstractFile, TFolder} from "obsidian";
 import LinkDictPlugin from "./main";
 import {t, detectLanguage, setLanguage} from "./i18n";
 

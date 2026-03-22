@@ -122,10 +122,10 @@ export class BatchUpdateService {
 
 		const result: BatchUpdateResult = { total: 0, updated: 0, skipped: 0, failed: 0 };
 
-		const modal = new ProgressModal(this.app, t('commands_batchUpdate'), () => {
-			this.shouldStop = true;
-		});
+		const modal = new ProgressModal(this.app);
 		modal.open();
+		
+		const checkAbort = () => modal.isAbortedByUser();
 
 		try {
 			console.log('[BatchUpdate] Finding files needing update...');
@@ -142,7 +142,7 @@ export class BatchUpdateService {
 			// Process files ONE BY ONE with proper error handling
 			for (let i = 0; i < filesNeedingUpdate.length; i++) {
 				// Check abort conditions
-				if (this.shouldStop || modal.isAbortedByUser()) {
+				if (this.shouldStop || checkAbort()) {
 					console.log(`[BatchUpdate] Aborted at file ${i + 1}/${result.total}`);
 					break;
 				}
