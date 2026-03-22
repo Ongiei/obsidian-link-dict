@@ -1,6 +1,7 @@
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
 
 const BASE_URL = 'https://api.frdic.com/api/open/v1';
+const REQUEST_TIMEOUT_MS = 30000;
 
 export interface EudicCategory {
 	id: string;
@@ -45,13 +46,21 @@ export class EudicService {
 				'Authorization': this.token,
 				'Content-Type': 'application/json',
 			},
+			throw: false,
 		};
 
 		if (body) {
 			options.body = JSON.stringify(body);
 		}
 
-		return requestUrl(options);
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+		try {
+			return await requestUrl(options);
+		} finally {
+			clearTimeout(timeoutId);
+		}
 	}
 
 	async getCategories(language: string = 'en'): Promise<EudicCategory[]> {

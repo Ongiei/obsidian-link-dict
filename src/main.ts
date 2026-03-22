@@ -268,9 +268,15 @@ export default class LinkDictPlugin extends Plugin {
 	private registerProtocolHandler(): void {
 		this.registerObsidianProtocolHandler('linkdict', async (params) => {
 			const action = params.action;
-			const word = params.word;
+			const rawWord = params.word || '';
+			
+			const word = sanitizeWord(rawWord);
+			if (!isValidWord(word)) {
+				console.warn('[LinkDict] Invalid word in protocol handler:', rawWord);
+				return;
+			}
 
-			if (action === 'update' && word) {
+			if (action === 'update') {
 				await this.updateWordFromProtocol(word);
 			}
 		});

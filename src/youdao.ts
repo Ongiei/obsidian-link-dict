@@ -1,6 +1,9 @@
 import {requestUrl} from 'obsidian';
 import {DictEntry} from './types';
 
+const REQUEST_TIMEOUT_MS = 30000;
+const ALLOWED_AUDIO_DOMAINS = ['dict.youdao.com'];
+
 interface WebTranslationItem {
 	'@key'?: string;
 	key?: string;
@@ -55,7 +58,8 @@ export class YoudaoService {
 				method: 'GET',
 				headers: {
 					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-				}
+				},
+				throw: false,
 			});
 
 			if (response.status !== 200) {
@@ -68,6 +72,19 @@ export class YoudaoService {
 		} catch (error) {
 			console.error('Youdao JSON API Error:', error);
 			return null;
+		}
+	}
+
+	private static validateAudioUrl(url: string): string {
+		if (!url) return '';
+		try {
+			const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+			if (!ALLOWED_AUDIO_DOMAINS.some(d => urlObj.hostname.endsWith(d))) {
+				return '';
+			}
+			return url;
+		} catch {
+			return '';
 		}
 	}
 
@@ -87,14 +104,16 @@ export class YoudaoService {
 		let audio_uk = "";
 		let audio_us = "";
 		if (entryData.ukspeech) {
-			audio_uk = entryData.ukspeech.startsWith('http') 
+			const rawUrl = entryData.ukspeech.startsWith('http') 
 				? entryData.ukspeech 
 				: `https://dict.youdao.com/dictvoice?audio=${entryData.ukspeech}`;
+			audio_uk = this.validateAudioUrl(rawUrl);
 		}
 		if (entryData.usspeech) {
-			audio_us = entryData.usspeech.startsWith('http') 
+			const rawUrl = entryData.usspeech.startsWith('http') 
 				? entryData.usspeech 
 				: `https://dict.youdao.com/dictvoice?audio=${entryData.usspeech}`;
+			audio_us = this.validateAudioUrl(rawUrl);
 		}
 
 		const definitions: { pos: string; trans: string }[] = [];

@@ -80,7 +80,11 @@ export class LinkDictSettingTab extends PluginSettingTab {
 					.setPlaceholder(t('ui_inputWord'))
 					.setValue(this.plugin.settings.folderPath)
 					.onChange(async (value) => {
-						this.plugin.settings.folderPath = value;
+						const sanitized = value.replace(/\.\./g, '').replace(/^\/+/, '');
+						if (sanitized !== value) {
+							new Notice('路径包含非法字符，已自动清理');
+						}
+						this.plugin.settings.folderPath = sanitized || 'LinkDict';
 						await this.plugin.saveSettings();
 					});
 			});
@@ -206,11 +210,19 @@ export class LinkDictSettingTab extends PluginSettingTab {
 					.setPlaceholder(t('settings_eudicApiToken'))
 					.setValue(this.plugin.settings.eudicToken)
 					.onChange(async (value) => {
-						this.plugin.settings.eudicToken = value;
+						this.plugin.settings.eudicToken = value.trim();
 						await this.plugin.saveSettings();
 					});
 				text.inputEl.type = 'password';
 			});
+
+		if (this.plugin.settings.eudicToken) {
+			const warningEl = containerEl.createEl('p', { 
+				cls: 'setting-item-description',
+				attr: { style: 'color: var(--text-warning); margin-top: -8px; margin-bottom: 12px;' }
+			});
+			warningEl.setText('⚠️ Token 以明文存储在插件数据中。请勿将 data.json 分享或上传到公开仓库。');
+		}
 
 		new Setting(containerEl)
 			.setName(t('settings_defaultVocabularyList'))
