@@ -13,28 +13,19 @@ export interface BatchUpdateResult {
 }
 
 export class ProgressModal extends Modal {
-	private title: string;
-	private progressBar: HTMLElement;
-	private progressBarFill: HTMLElement;
-	private statusText: HTMLElement;
-	private abortBtn: HTMLButtonElement;
-	private onAbort: () => void;
+	private progressBarFill: HTMLElement | null = null;
+	private statusText: HTMLElement | null = null;
+	private abortBtn: HTMLButtonElement | null = null;
 	private isAborted: boolean = false;
-
-	constructor(app: App, title: string, onAbort: () => void) {
-		super(app);
-		this.title = title;
-		this.onAbort = onAbort;
-	}
 
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.addClass('link-dict-progress-modal');
 
-		contentEl.createEl('h2', { text: this.title });
+		contentEl.createEl('h2', { text: t('commands_batchUpdate') });
 
-		this.progressBar = contentEl.createEl('div', { cls: 'progress-bar-container' });
-		this.progressBarFill = this.progressBar.createEl('div', { cls: 'progress-bar-fill' });
+		const progressBar = contentEl.createEl('div', { cls: 'progress-bar-container' });
+		this.progressBarFill = progressBar.createEl('div', { cls: 'progress-bar-fill' });
 
 		this.statusText = contentEl.createEl('p', { cls: 'progress-status' });
 		this.statusText.textContent = t('progress_preparing');
@@ -42,15 +33,26 @@ export class ProgressModal extends Modal {
 		const btnContainer = contentEl.createEl('div', { cls: 'modal-button-container' });
 		this.abortBtn = btnContainer.createEl('button', { cls: 'mod-warning' });
 		this.abortBtn.textContent = t('progress_abort');
-		this.abortBtn.addEventListener('click', () => {
-			this.isAborted = true;
-			this.onAbort();
-			this.abortBtn.disabled = true;
-			this.abortBtn.textContent = t('progress_aborting');
-		});
+		this.abortBtn.addEventListener('click', () => this.handleAbortClick());
 	}
 
-	updateProgress(current: number, total: number, word: string) {
+	private handleAbortClick(): void {
+		if (this.isAborted) {
+			this.close();
+			return;
+		}
+		this.isAborted = true;
+		if (this.abortBtn) {
+			this.abortBtn.disabled = true;
+			this.abortBtn.textContent = t('progress_aborting');
+		}
+	}
+
+	private handleCompleteClick(): void {
+		this.close();
+	}
+
+	updateProgress(current: number, total: number, word: string): void {
 		if (this.progressBarFill && total > 0) {
 			const percent = (current / total) * 100;
 			this.progressBarFill.style.width = `${percent}%`;
@@ -61,7 +63,7 @@ export class ProgressModal extends Modal {
 		}
 	}
 
-	setComplete(result: BatchUpdateResult) {
+	setComplete(result: BatchUpdateResult): void {
 		if (this.statusText) {
 			this.statusText.textContent = t('progress_completed', {
 				updated: result.updated,
@@ -73,8 +75,8 @@ export class ProgressModal extends Modal {
 		if (this.abortBtn) {
 			this.abortBtn.textContent = t('progress_close');
 			this.abortBtn.disabled = false;
-			this.abortBtn.classList.remove('mod-warning');
-			this.abortBtn.onclick = () => this.close();
+			this.abortBtn.removeClass('mod-warning');
+			this.abortBtn.onclick = () => this.handleCompleteClick();
 		}
 	}
 
@@ -82,9 +84,12 @@ export class ProgressModal extends Modal {
 		return this.isAborted;
 	}
 
-	onClose() {
+	onClose(): void {
 		const { contentEl } = this;
 		contentEl.empty();
+		this.progressBarFill = null;
+		this.statusText = null;
+		this.abortBtn = null;
 	}
 }
 
