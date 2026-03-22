@@ -82,6 +82,8 @@ export class BatchUpdateService {
 
 				for (let j = 0; j < chunk.length; j++) {
 					const file = chunk[j];
+					if (!file) continue;
+					
 					const word = file.basename;
 					const current = i + j + 1;
 
