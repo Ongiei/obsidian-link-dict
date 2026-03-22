@@ -1,40 +1,100 @@
-import { App, Notice, TFile, TFolder, parseYaml } from 'obsidian';
+import { App, Modal, TFile, TFolder, parseYaml, stringifyYaml, setIcon } from 'obsidian';
 import { LinkDictSettings } from './settings';
 import { YoudaoService } from './youdao';
 import { DictEntry } from './types';
 import { t } from './i18n';
-
-const EUDIC_SYNC_CALLOUT = '> [!info] Eudic Sync';
-
-function delay(ms: number): Promise<void> {
-	return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function escapeYamlString(str: string): string {
-	if (!str) return str;
-	if (str.includes(':') || str.includes("'") || str.includes('"') || str.includes('\n') || str.includes('#')) {
-		return `'${str.replace(/'/g, "''")}'`;
-	}
-	return str;
-}
-
-function hasEudicSyncedFrontmatter(content: string): boolean {
-	const match = content.match(/^---\n([\s\S]*?)\n---/);
-	if (!match || !match[1]) return false;
-	
-	try {
-		const frontmatter = parseYaml(match[1]) as Record<string, unknown>;
-		return frontmatter?.eudic_synced === true;
-	} catch {
-		return false;
-	}
-}
+import type { DictSource, Frontmatter } from './sync';
 
 export interface BatchUpdateResult {
 	total: number;
 	updated: number;
 	skipped: number;
 	failed: number;
+}
+
+export class ProgressModal extends Modal {
+	private title: string;
+	private current: number = 0;
+	private total: number = 0;
+	private word: string = '';
+	private progressBar: HTMLElement;
+	private statusText: HTMLElement;
+	private abortBtn: HTMLButtonElement;
+	private onAbort: () => void;
+	private isAborted: boolean = false;
+
+	constructor(app: App, title: string, onAbort: () => void) {
+		super(app);
+		this.title = title;
+		this.onAbort = onAbort;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.addClass('link-dict-progress-modal');
+
+		contentEl.createEl('h2', { text: this.title });
+
+		this.progressBar = contentEl.createEl('div', { cls: 'progress-bar-container' });
+		this.progressBar.createEl('div', { cls: 'progress-bar-fill' });
+
+		this.statusText = contentEl.createEl('p', { cls: 'progress-status' });
+		this.statusText.textContent = t('progress_preparing');
+
+		const btnContainer = contentEl.createEl('div', { cls: 'modal-button-container' });
+		this.abortBtn = btnContainer.createEl('button', { cls: 'mod-warning' });
+		this.abortBtn.textContent = t('progress_abort');
+		this.abortBtn.addEventListener('click', () => {
+			this.isAborted = true;
+			this.onAbort();
+			this.abortBtn.disabled = true;
+			this.abortBtn.textContent = t('progress_aborting');
+		});
+	}
+
+	updateProgress(current: number, total: number, word: string) {
+		this.current = current;
+		this.total = total;
+		this.word = word;
+
+		if (this.progressBar) {
+			const fill = this.progressBar.querySelector('.progress-bar-fill') as HTMLElement;
+			if (fill && total > 0) {
+				const percent = (current / total) * 100;
+				fill.style.width = `${percent}%`;
+			}
+		}
+
+		if (this.statusText) {
+			this.statusText.textContent = t('progress_updating', { current, total, word });
+		}
+	}
+
+	setComplete(result: BatchUpdateResult) {
+		if (this.statusText) {
+			this.statusText.textContent = t('progress_completed', {
+				updated: result.updated,
+				skipped: result.skipped,
+				failed: result.failed,
+			});
+		}
+
+		if (this.abortBtn) {
+			this.abortBtn.textContent = t('progress_close');
+			this.abortBtn.disabled = false;
+			this.abortBtn.classList.remove('mod-warning');
+			this.abortBtn.addEventListener('click', () => this.close());
+		}
+	}
+
+	isAbortedByUser(): boolean {
+		return this.isAborted;
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
 }
 
 export class BatchUpdateService {
@@ -56,9 +116,8 @@ export class BatchUpdateService {
 		return this.isRunning;
 	}
 
-	async batchUpdate(progressCallback?: (current: number, total: number, word: string) => void): Promise<BatchUpdateResult> {
+	async batchUpdateWithModal(): Promise<BatchUpdateResult> {
 		if (this.isRunning) {
-			new Notice(t('notice_batchInProgress'));
 			return { total: 0, updated: 0, skipped: 0, failed: 0 };
 		}
 
@@ -67,80 +126,50 @@ export class BatchUpdateService {
 
 		const result: BatchUpdateResult = { total: 0, updated: 0, skipped: 0, failed: 0 };
 
+		const modal = new ProgressModal(this.app, t('commands_batchUpdate'), () => {
+			this.shouldStop = true;
+		});
+		modal.open();
+
 		try {
 			const filesNeedingUpdate = await this.findFilesNeedingUpdate();
 			result.total = filesNeedingUpdate.length;
 
 			if (filesNeedingUpdate.length === 0) {
-				new Notice(t('notice_noFilesToUpdate'));
+				modal.setComplete(result);
 				return result;
 			}
 
-			const sourceName = this.settings.dictionarySource === 'eudic' ? '欧路词典' : '有道词典';
-			new Notice(t('notice_batchStarted', { count: result.total }));
-			new Notice(t('notice_batchSource', { source: sourceName }));
-
-			const chunkSize = this.settings.batchChunkSize;
-			const delayMs = this.settings.batchDelayMs;
-
-			for (let i = 0; i < filesNeedingUpdate.length; i += chunkSize) {
-				if (this.shouldStop) {
-					new Notice(t('notice_batchStopped'));
+			for (let i = 0; i < filesNeedingUpdate.length; i++) {
+				if (this.shouldStop || modal.isAbortedByUser()) {
 					break;
 				}
 
-				const chunk = filesNeedingUpdate.slice(i, i + chunkSize);
+				const file = filesNeedingUpdate[i];
+				if (!file) continue;
 
-				for (let j = 0; j < chunk.length; j++) {
-					const file = chunk[j];
-					if (!file) continue;
-					
-					const word = file.basename;
-					const current = i + j + 1;
+				const word = file.basename;
+				modal.updateProgress(i + 1, result.total, word);
 
-					if (progressCallback) {
-						progressCallback(current, result.total, word);
+				try {
+					const didUpdate = await this.updateFileSafely(file);
+					if (didUpdate) {
+						result.updated++;
+					} else {
+						result.skipped++;
 					}
-
-					new Notice(t('notice_batchProgress', { current, total: result.total, word }));
-
-					try {
-						const content = await this.app.vault.read(file);
-						
-						if (!this.canSafelyOverwrite(content)) {
-							new Notice(t('notice_skippingEdited', { word }));
-							result.skipped++;
-							continue;
-						}
-
-						const entry = await this.fetchDefinition(word);
-						if (entry) {
-							await this.updateFileContent(file, entry);
-							result.updated++;
-						} else {
-							result.skipped++;
-						}
-
-						await delay(100);
-					} catch (error) {
-						console.error(`Failed to update ${word}:`, error);
-						result.failed++;
-					}
+				} catch (error) {
+					console.error(`Failed to update ${word}:`, error);
+					result.failed++;
 				}
 
-				if (i + chunkSize < filesNeedingUpdate.length && !this.shouldStop) {
-					await delay(delayMs);
-				}
+				await this.delay(100);
 			}
 
-			new Notice(t('notice_batchCompleted', { 
-				updated: result.updated, 
-				skipped: result.skipped, 
-				failed: result.failed 
-			}));
+			modal.setComplete(result);
 		} catch (error) {
 			console.error('Batch update error:', error);
-			new Notice(t('notice_batchFailed', { error: error instanceof Error ? error.message : 'Unknown' }));
+			modal.setComplete(result);
 		} finally {
 			this.isRunning = false;
 		}
@@ -148,11 +177,48 @@ export class BatchUpdateService {
 		return result;
 	}
 
-	private async fetchDefinition(word: string): Promise<DictEntry | null> {
-		if (this.settings.dictionarySource === 'youdao') {
-			return YoudaoService.lookup(word);
+	async batchUpdate(): Promise<BatchUpdateResult> {
+		return this.batchUpdateWithModal();
+	}
+
+	private async updateFileSafely(file: TFile): Promise<boolean> {
+		const word = file.basename;
+
+		try {
+			const content = await this.app.vault.read(file);
+			const fm = this.parseFrontmatter(content);
+
+			if (fm?.dict_source === 'youdao') {
+				return false;
+			}
+
+			const entry = await YoudaoService.lookup(word);
+			if (!entry) {
+				return false;
+			}
+
+			await this.app.vault.process(file, () => {
+				return this.generateFullMarkdown(word, entry);
+			});
+
+			return true;
+		} catch (error) {
+			console.error(`Failed to update ${word}:`, error);
+			throw error;
 		}
-		return YoudaoService.lookup(word);
+	}
+
+	private parseFrontmatter(content: string): Frontmatter | null {
+		const match = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!match || !match[1]) {
+			return null;
+		}
+
+		try {
+			return parseYaml(match[1]) as Frontmatter;
+		} catch {
+			return null;
+		}
 	}
 
 	private async findFilesNeedingUpdate(): Promise<TFile[]> {
@@ -168,43 +234,21 @@ export class BatchUpdateService {
 		for (const file of folder.children) {
 			if (file instanceof TFile && file.extension === 'md') {
 				const content = await this.app.vault.read(file);
-				if (this.needsUpdate(content)) {
+				const fm = this.parseFrontmatter(content);
+
+				if (fm?.dict_source === 'youdao') {
+					continue;
+				}
+
+				if (content.includes('eudic_synced: true') || 
+					content.includes('eudic_synced:True') ||
+					content.includes('[!info] Eudic Sync')) {
 					files.push(file);
 				}
 			}
 		}
 
 		return files;
-	}
-
-	private needsUpdate(content: string): boolean {
-		if (content.includes(EUDIC_SYNC_CALLOUT)) {
-			return true;
-		}
-
-		if (hasEudicSyncedFrontmatter(content)) {
-			return true;
-		}
-
-		return false;
-	}
-
-	private canSafelyOverwrite(content: string): boolean {
-		if (content.includes(EUDIC_SYNC_CALLOUT)) {
-			return true;
-		}
-
-		if (hasEudicSyncedFrontmatter(content)) {
-			return true;
-		}
-
-		return false;
-	}
-
-	private async updateFileContent(file: TFile, entry: DictEntry): Promise<void> {
-		const word = file.basename;
-		const markdown = this.generateFullMarkdown(word, entry);
-		await this.app.vault.modify(file, markdown);
 	}
 
 	private generateFullMarkdown(word: string, entry: DictEntry): string {
@@ -232,20 +276,18 @@ export class BatchUpdateService {
 
 		const uniqueAliases = [...new Set(aliases)].filter(a => a && a.trim() !== '');
 
-		let yaml = '---\n';
-		yaml += 'tags:\n';
-		for (const tag of uniqueTags) {
-			yaml += `  - ${escapeYamlString(tag)}\n`;
-		}
-		if (uniqueAliases.length > 0) {
-			yaml += 'aliases:\n';
-			for (const alias of uniqueAliases) {
-				yaml += `  - ${escapeYamlString(alias)}\n`;
-			}
-		}
-		yaml += '---\n\n';
+		const frontmatter: Frontmatter = {
+			tags: uniqueTags,
+			eudic_synced: true,
+			dict_source: 'youdao',
+		};
 
-		let content = `# ${word}\n\n`;
+		if (uniqueAliases.length > 0) {
+			frontmatter.aliases = uniqueAliases;
+		}
+
+		let content = `---\n${stringifyYaml(frontmatter)}---\n\n`;
+		content += `# ${word}\n\n`;
 
 		if (entry.ph_uk || entry.ph_us) {
 			content += `## ${t('view_pronunciation')}\n\n`;
@@ -297,7 +339,7 @@ export class BatchUpdateService {
 			content += '\n';
 		}
 
-		return yaml + content;
+		return content;
 	}
 
 	async updateSingleWord(word: string): Promise<boolean> {
@@ -310,23 +352,14 @@ export class BatchUpdateService {
 				return false;
 			}
 
-			const content = await this.app.vault.read(file);
-			
-			if (!this.canSafelyOverwrite(content)) {
-				new Notice(t('notice_skippingEdited', { word }));
-				return false;
-			}
-
-			const entry = await this.fetchDefinition(word);
-			if (!entry) {
-				return false;
-			}
-
-			await this.updateFileContent(file, entry);
-			return true;
+			return await this.updateFileSafely(file);
 		} catch (error) {
 			console.error(`Failed to update ${word}:`, error);
 			return false;
 		}
+	}
+
+	private delay(ms: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 }

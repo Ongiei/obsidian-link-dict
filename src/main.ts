@@ -8,8 +8,8 @@ import {getLemma} from "./lemmatizer";
 import {EudicService} from "./eudic";
 import {SyncService} from "./sync";
 import {AutoLinkService} from "./auto-link";
-import {BatchUpdateService} from "./batch-update";
-import {ConfirmSyncModal} from "./modal";
+import {BatchUpdateService, ProgressModal} from "./batch-update";
+import {SyncConfirmationModal} from "./modal";
 import {t, detectLanguage, setLanguage} from "./i18n";
 
 export const VIEW_TYPE_LINK_DICT = 'link-dict-view';
@@ -55,7 +55,6 @@ export default class LinkDictPlugin extends Plugin {
 		});
 
 		this.autoLinkService = new AutoLinkService(this.app, this.settings);
-
 		this.batchUpdateService = new BatchUpdateService(this.app, this.settings);
 
 		this.initEudicServices();
@@ -110,8 +109,8 @@ export default class LinkDictPlugin extends Plugin {
 		}
 
 		if (this.settings.eudicToken && this.settings.enableSync) {
-			this.syncRibbonIcon = this.addRibbonIcon('refresh-cw', t('commands_syncNow'), () => {
-				void this.performSync();
+			this.syncRibbonIcon = this.addRibbonIcon('refresh-cw', t('commands_syncPreview'), () => {
+				void this.performSyncPreview();
 			});
 		}
 
@@ -173,10 +172,10 @@ export default class LinkDictPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'sync-now',
-			name: t('commands_syncNow'),
+			id: 'sync-preview',
+			name: t('commands_syncPreview'),
 			callback: () => {
-				void this.performSync();
+				void this.performSyncPreview();
 			}
 		});
 
@@ -306,7 +305,7 @@ export default class LinkDictPlugin extends Plugin {
 		this.clearStartupSyncTimeout();
 		const delayMs = Math.max(0, this.settings.startupDelay) * 1000;
 		this.startupSyncTimeout = window.setTimeout(() => {
-			void this.performSync();
+			void this.performSyncPreview();
 		}, delayMs);
 	}
 
@@ -328,7 +327,7 @@ export default class LinkDictPlugin extends Plugin {
 	private startSyncTimer(): void {
 		const intervalMs = Math.max(5, this.settings.syncInterval) * 60 * 1000;
 		this.syncTimer = window.setInterval(() => {
-			void this.performSync();
+			void this.performSyncPreview();
 		}, intervalMs);
 		if (!this.syncTimerRegistered) {
 			this.registerInterval(this.syncTimer);
@@ -343,38 +342,48 @@ export default class LinkDictPlugin extends Plugin {
 		}
 	}
 
-	async performSync(): Promise<void> {
+	async performSyncPreview(): Promise<void> {
 		if (!this.syncService || !this.eudicService) {
 			new Notice(t('notice_noTokenConfigured'));
 			return;
 		}
 
 		try {
-			const preview = await this.syncService.previewSync();
+			new Notice(t('sync_dry_run_running'));
 
-			if (this.syncService.needsDeleteConfirmation(preview)) {
-				new ConfirmSyncModal(
-					this.app,
-					preview,
-					() => {
-						void this.executeSync();
-					},
-					() => {
-						new Notice(t('notice_syncCancelled'));
-					}
-				).open();
-			} else {
-				await this.executeSync();
-			}
+			const dryRunResult = await this.syncService.dryRun();
+
+			new SyncConfirmationModal(
+				this.app,
+				dryRunResult,
+				() => {
+					void this.executeSync(dryRunResult);
+				},
+				() => {
+					new Notice(t('notice_syncCancelled'));
+				}
+			).open();
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 			new Notice(t('notice_syncFailed', { error: errorMsg }));
 		}
 	}
 
-	private async executeSync(): Promise<void> {
+	private async executeSync(dryRunResult: import('./sync').SyncDryRunResult): Promise<void> {
 		if (!this.syncService) return;
-		await this.syncService.sync();
+
+		const result = await this.syncService.executeSync(dryRunResult, (current, total, word) => {
+			// Progress handled internally
+		});
+
+		if (result.success) {
+			new Notice(t('notice_syncCompletedWithStats', {
+				uploaded: result.uploaded,
+				downloaded: result.downloaded,
+			}));
+		} else {
+			new Notice(t('notice_syncFailed', { error: result.errors[0] ?? 'Unknown error' }));
+		}
 	}
 
 	async performBatchUpdate(): Promise<void> {
@@ -382,7 +391,7 @@ export default class LinkDictPlugin extends Plugin {
 			this.batchUpdateService = new BatchUpdateService(this.app, this.settings);
 		}
 
-		await this.batchUpdateService.batchUpdate();
+		await this.batchUpdateService.batchUpdateWithModal();
 	}
 
 	async autoLinkDocument(editor: Editor): Promise<void> {

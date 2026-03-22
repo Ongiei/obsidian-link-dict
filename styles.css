@@ -543,3 +543,97 @@
 	font-weight: bold;
 	margin-top: 8px;
 }
+
+.link-dict-progress-modal {
+	padding: 20px;
+}
+
+.link-dict-progress-modal h2 {
+	margin-bottom: 16px;
+}
+
+.progress-bar-container {
+	width: 100%;
+	height: 8px;
+	background-color: var(--background-modifier-border);
+	border-radius: 4px;
+	overflow: hidden;
+	margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+	height: 100%;
+	background-color: var(--interactive-accent);
+	width: 0%;
+	transition: width 0.2s ease;
+}
+
+.progress-status {
+	color: var(--text-muted);
+	margin-bottom: 16px;
+}
+
+.modal-button-container {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.link-dict-sync-modal {
+	padding: 20px;
+}
+
+.link-dict-sync-modal h2 {
+	margin-bottom: 16px;
+}
+
+.sync-change-list {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 16px 0;
+}
+
+.sync-change-item {
+	padding: 8px 12px;
+	margin-bottom: 8px;
+	border-radius: 4px;
+	border-left: 3px solid;
+}
+
+.sync-change-download {
+	background-color: var(--background-secondary);
+	border-left-color: var(--text-success);
+}
+
+.sync-change-upload {
+	background-color: var(--background-secondary);
+	border-left-color: var(--text-accent);
+}
+
+.sync-change-mark-deleted {
+	background-color: var(--background-secondary);
+	border-left-color: var(--text-warning);
+}
+
+.sync-change-delete-cloud {
+	background-color: var(--background-secondary);
+	border-left-color: var(--text-error);
+}
+
+.sync-word-preview {
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.sync-error-list {
+	margin-top: 12px;
+	padding: 8px;
+	background-color: var(--background-modifier-error);
+	border-radius: 4px;
+}
+
+.sync-error-item {
+	color: var(--text-error);
+	font-size: 0.9em;
+	margin-top: 4px;
+}
