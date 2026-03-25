@@ -20,6 +20,7 @@ export class DictionaryView extends ItemView {
 	}
 
 	getDisplayText() {
+		// eslint-disable-next-line obsidianmd/ui/sentence-case
 		return 'Eudic Bridge';
 	}
 
