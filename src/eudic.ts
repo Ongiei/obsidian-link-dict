@@ -27,6 +27,7 @@ interface EudicCreateCategoryResponse {
 
 interface EudicWordsResponse {
 	data: EudicWord[];
+	total?: number;
 }
 
 export class EudicService {
@@ -93,7 +94,7 @@ export class EudicService {
 		return data.data;
 	}
 
-	async getWords(categoryId: string, language: string = 'en', page: number = 1, pageSize: number = 100): Promise<EudicWord[]> {
+	async getWords(categoryId: string, language: string = 'en', page: number = 0, pageSize: number = 100): Promise<EudicWord[]> {
 		const response = await this.request('GET', `/studylist/words/${categoryId}?language=${language}&page=${page}&page_size=${pageSize}`);
 		
 		if (response.status >= 400) {

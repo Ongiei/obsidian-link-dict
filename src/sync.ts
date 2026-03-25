@@ -1,124 +1,99 @@
 import { App, TFile, TFolder, stringifyYaml } from 'obsidian';
-import { EudicService } from './eudic';
+import { EudicService, EudicWord, EudicCategory } from './eudic';
 import { LinkDictSettings } from './settings';
 import { t } from './i18n';
 
-export type DictSource = 'eudic' | 'youdao';
+const MANIFEST_KEY = 'syncManifest';
+const API_TIMEOUT_MS = 30000;
+const FILE_TIMEOUT_MS = 10000;
 
-export interface SyncChange {
-	word: string;
-	action: 'download' | 'upload' | 'delete_local' | 'delete_from_cloud';
-	reason: string;
+export interface SyncManifest {
+	lastSyncTime: number;
+	syncedWords: string[];
 }
 
 export interface SyncDryRunResult {
-	toDownload: SyncChange[];
-	toUpload: SyncChange[];
-	toDeleteLocal: SyncChange[];
-	toDeleteFromCloud: SyncChange[];
+	localAdded: string[];
+	cloudAdded: string[];
+	localDeleted: string[];
+	cloudDeleted: string[];
 	errors: string[];
 }
 
 export interface SyncResult {
 	success: boolean;
-	uploaded: number;
-	downloaded: number;
-	deletedFromCloud: number;
-	deletedLocal: number;
-	skipped: number;
+	aborted: boolean;
+	stats: {
+		uploaded: number;
+		downloaded: number;
+		deletedFromCloud: number;
+		trashedLocally: number;
+		failed: number;
+	};
 	errors: string[];
 }
 
-export interface Frontmatter {
+interface Frontmatter {
 	tags?: string[];
-	aliases?: string[];
-	dict_source?: DictSource;
+	dict_source?: 'eudic';
+	eudic_lists?: string[];
+	word?: string;
 	[key: string]: unknown;
 }
 
-export interface EudicWordData {
-	word: string;
-	exp?: string;
+interface CloudWordData {
+	exp: string;
+	categories: string[];
+	originalWord: string;
 }
 
-export interface SyncManifest {
-	lastSyncTime: string;
-	syncedWords: string[];
-}
-
-export interface ExternalChanges {
-	possiblyDeletedLocally: string[];
-	possiblyAddedLocally: string[];
-}
-
-export interface ExternalChangesResolution {
-	deletedAction: 'delete_from_cloud' | 'redownload' | 'ignore';
-	addedAction: 'upload' | 'delete_local' | 'ignore';
-}
-
-const DEFAULT_API_DELAY_MS = 200;
-const API_TIMEOUT_MS = 30000;
-const FILE_TIMEOUT_MS = 10000;
-const MANIFEST_KEY = 'syncManifest';
-
-// 跟踪插件主动删除的单词（用于区分外部删除）
-const pluginDeletedWords = new Set<string>();
-
-function delay(ms: number): Promise<void> {
-	return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, operation: string): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, ms: number, operation: string): Promise<T> {
 	return new Promise((resolve, reject) => {
-		let settled = false;
 		const timer = setTimeout(() => {
-			if (!settled) {
-				settled = true;
-				reject(new Error(`Timeout after ${ms}ms: ${operation}`));
-			}
+			reject(new Error(`Timeout: ${operation}`));
 		}, ms);
 		
 		promise
 			.then(result => {
-				if (!settled) {
-					settled = true;
-					clearTimeout(timer);
-					resolve(result);
-				}
+				clearTimeout(timer);
+				resolve(result);
 			})
 			.catch(err => {
-				if (!settled) {
-					settled = true;
-					clearTimeout(timer);
-					reject(err);
-				}
+				clearTimeout(timer);
+				reject(err);
 			});
 	});
+}
+
+export function getValidFilename(word: string): string {
+	let sanitized = word.toLowerCase();
+	sanitized = sanitized.replace(/[<>:"/\\|?*]/g, '_');
+	sanitized = sanitized.replace(/^\.+|\.+$/g, '');
+	sanitized = sanitized.replace(/_{2,}/g, '_');
+	return sanitized || 'unnamed';
 }
 
 export class SyncService {
 	private app: App;
 	private settings: LinkDictSettings;
 	private eudicService: EudicService;
-	private saveSettings: () => Promise<void>;
 	private loadData: () => Promise<unknown>;
 	private saveData: (data: unknown) => Promise<void>;
 	private isSyncing = false;
-	private shouldAbort = false;
-	private cachedRemoteData: Map<string, EudicWordData> | null = null;
+	private categoryIdToName: Map<string, string> = new Map();
+	private cloudWordsWithCategories: Map<string, CloudWordData> = new Map();
+	private localWordToFile: Map<string, TFile> = new Map();
 
 	constructor(
 		app: App,
 		settings: LinkDictSettings,
 		eudicService: EudicService,
-		saveSettings: () => Promise<void>,
-		loadData: () => Promise<unknown> = () => Promise.resolve({}),
-		saveData: (data: unknown) => Promise<void> = () => Promise.resolve()
+		loadData: () => Promise<unknown>,
+		saveData: (data: unknown) => Promise<void>
 	) {
 		this.app = app;
 		this.settings = settings;
 		this.eudicService = eudicService;
-		this.saveSettings = saveSettings;
 		this.loadData = loadData;
 		this.saveData = saveData;
 	}
@@ -127,26 +102,22 @@ export class SyncService {
 		return this.isSyncing;
 	}
 
-	abort(): void {
-		this.shouldAbort = true;
-	}
-
 	private async loadManifest(): Promise<SyncManifest | null> {
 		try {
 			const data = await this.loadData();
 			if (data && typeof data === 'object' && MANIFEST_KEY in data) {
 				return (data as Record<string, unknown>)[MANIFEST_KEY] as SyncManifest;
 			}
-		} catch {
-			// Ignore errors
+		} catch (error) {
+			console.debug('[LinkDict] Load manifest failed:', error);
 		}
 		return null;
 	}
 
 	private async saveManifest(words: string[]): Promise<void> {
 		const manifest: SyncManifest = {
-			lastSyncTime: new Date().toISOString(),
-			syncedWords: words,
+			lastSyncTime: Date.now(),
+			syncedWords: words.map(w => w.toLowerCase()),
 		};
 		
 		try {
@@ -154,522 +125,398 @@ export class SyncService {
 			data[MANIFEST_KEY] = manifest;
 			await this.saveData(data);
 		} catch (error) {
-			console.error('[LinkDict] Failed to save manifest:', error);
+			console.error('[LinkDict] Save manifest failed:', error);
 		}
 	}
 
-	/**
-	 * 从 manifest 中移除单词（当插件主动删除文件时调用）
-	 */
-	private async removeWordFromManifest(word: string): Promise<void> {
-		const manifest = await this.loadManifest();
-		if (manifest) {
-			manifest.syncedWords = manifest.syncedWords.filter(w => w.toLowerCase() !== word.toLowerCase());
-			await this.saveManifest(manifest.syncedWords);
+	private async loadCategoryMapping(): Promise<void> {
+		if (this.categoryIdToName.size > 0) return;
+
+		const categories = await this.eudicService.getCategories('en');
+		for (const cat of categories) {
+			this.categoryIdToName.set(cat.id, cat.name);
 		}
 	}
 
-	/**
-	 * 检测外部变动（插件不在场时的文件增删）
-	 * 只检测那些不在 pluginDeletedWords 集合中的删除
-	 */
-	async detectExternalChanges(): Promise<ExternalChanges | null> {
-		// Clear any stale cache before starting
-		this.cachedRemoteData = null;
+	private async fetchCloudWords(): Promise<Map<string, CloudWordData>> {
+		const data = new Map<string, CloudWordData>();
 		
-		const manifest = await this.loadManifest();
-		
-		// 首次同步，没有 manifest，不检测外部变动
-		if (!manifest || manifest.syncedWords.length === 0) {
-			return null;
-		}
+		await this.loadCategoryMapping();
 
-		// 获取云端数据
-		if (!this.cachedRemoteData) {
-			this.cachedRemoteData = await this.fetchRemoteWordData();
-		}
-		
-		const localWords = await this.fetchLocalWords();
-		
-		const cloudWords = new Set(this.cachedRemoteData.keys());
-		const manifestWords = new Set(manifest.syncedWords.map(w => w.toLowerCase()));
-		const localSet = new Set(localWords.map(w => w.toLowerCase()));
+		const categoryIds = this.settings.syncCategoryIds.length > 0 
+			? this.settings.syncCategoryIds 
+			: [this.settings.eudicDefaultListId || '0'];
 
-		// possiblyDeletedLocally = manifestWords ∩ cloudWords - localWords - pluginDeletedWords
-		// (manifest 有、云端有、本地不见了，且不是插件主动删除的)
-		const possiblyDeletedLocally: string[] = [];
-		for (const word of manifestWords) {
-			if (cloudWords.has(word) && !localSet.has(word) && !pluginDeletedWords.has(word)) {
-				possiblyDeletedLocally.push(word);
+		const pageSize = 100;
+
+		for (const categoryId of categoryIds) {
+			const categoryName = this.categoryIdToName.get(categoryId) || categoryId;
+			let page = 0;
+
+			while (true) {
+				const batch: EudicWord[] = await withTimeout(
+					this.eudicService.getWords(categoryId, 'en', page, pageSize),
+					API_TIMEOUT_MS,
+					`getWords ${categoryName} page ${page}`
+				);
+
+				if (!batch || batch.length === 0) break;
+
+				for (const w of batch) {
+					const originalWord = w.word?.trim();
+					if (!originalWord) continue;
+
+					const wordLower = originalWord.toLowerCase();
+					
+					const existing = data.get(wordLower);
+					if (existing) {
+						if (!existing.categories.includes(categoryName)) {
+							existing.categories.push(categoryName);
+						}
+					} else {
+						data.set(wordLower, {
+							exp: w.exp || '',
+							categories: [categoryName],
+							originalWord: originalWord,
+						});
+					}
+				}
+
+				if (batch.length < pageSize) break;
+				page++;
 			}
 		}
 
-		// possiblyAddedLocally = localWords - manifestWords - cloudWords
-		// (本地有、但 manifest 和云端都没有记录)
-		const possiblyAddedLocally: string[] = [];
-		for (const word of localSet) {
-			if (!manifestWords.has(word) && !cloudWords.has(word)) {
-				possiblyAddedLocally.push(word);
+		this.cloudWordsWithCategories = data;
+		console.log(`[LinkDict] Fetched ${data.size} unique words from ${categoryIds.length} categories`);
+		return data;
+	}
+
+	private async fetchLocalWords(): Promise<Set<string>> {
+		const words = new Set<string>();
+		this.localWordToFile.clear();
+
+		const folderPath = this.settings.folderPath;
+		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+
+		if (!(folder instanceof TFolder)) return words;
+
+		for (const child of folder.children) {
+			if (child instanceof TFile && child.extension === 'md') {
+				const cache = this.app.metadataCache.getFileCache(child);
+				const fm = cache?.frontmatter;
+
+				const tags = fm?.tags;
+				if (Array.isArray(tags) && tags.includes('linkdict/cloud-deleted')) {
+					continue;
+				}
+
+				let realWord: string | undefined = fm?.word;
+				
+				if (!realWord) {
+					realWord = child.basename;
+				}
+
+				const wordLower = realWord.toLowerCase();
+				words.add(wordLower);
+				this.localWordToFile.set(wordLower, child);
 			}
 		}
 
-		// 清理 pluginDeletedWords（已经处理过的）
-		pluginDeletedWords.clear();
-
-		if (possiblyDeletedLocally.length === 0 && possiblyAddedLocally.length === 0) {
-			return null;
-		}
-
-		return { possiblyDeletedLocally, possiblyAddedLocally };
+		console.log(`[LinkDict] Found ${words.size} local words`);
+		return words;
 	}
 
-	/**
-	 * 计算同步差异（核心逻辑）
-	 */
-	async dryRun(resolution?: ExternalChangesResolution): Promise<SyncDryRunResult> {
+	private getLocalFileByWord(word: string): TFile | undefined {
+		return this.localWordToFile.get(word.toLowerCase());
+	}
+
+	async dryRun(): Promise<SyncDryRunResult> {
 		const result: SyncDryRunResult = {
-			toDownload: [],
-			toUpload: [],
-			toDeleteLocal: [],
-			toDeleteFromCloud: [],
+			localAdded: [],
+			cloudAdded: [],
+			localDeleted: [],
+			cloudDeleted: [],
 			errors: [],
 		};
 
 		try {
-			// 获取云端数据
-			if (!this.cachedRemoteData) {
-				this.cachedRemoteData = await this.fetchRemoteWordData();
-			}
-			
 			const manifest = await this.loadManifest();
-			const localWords = await this.fetchLocalWords();
-
-			const cloudWords = new Set(this.cachedRemoteData.keys());
-			const localSet = new Set(localWords.map(w => w.toLowerCase()));
-			const manifestWords = manifest 
-				? new Set(manifest.syncedWords.map(w => w.toLowerCase()))
-				: new Set<string>();
-
-			const processedWords = new Set<string>();
-
-			// ===== 处理外部变动（用户决策）=====
-			if (resolution) {
-				// 处理外部删除
-				if (resolution.deletedAction === 'delete_from_cloud') {
-					for (const word of manifestWords) {
-						if (cloudWords.has(word) && !localSet.has(word) && !processedWords.has(word)) {
-							result.toDeleteFromCloud.push({
-								word,
-								action: 'delete_from_cloud',
-								reason: t('sync_reason_local_deleted'),
-							});
-							processedWords.add(word);
-						}
-					}
-				} else if (resolution.deletedAction === 'redownload') {
-					for (const word of manifestWords) {
-						if (cloudWords.has(word) && !localSet.has(word) && !processedWords.has(word)) {
-							result.toDownload.push({
-								word,
-								action: 'download',
-								reason: t('sync_reason_remote_only'),
-							});
-							processedWords.add(word);
-						}
-					}
-				}
-
-				// 处理外部新增
-				if (resolution.addedAction === 'upload') {
-					for (const word of localSet) {
-						if (!manifestWords.has(word) && !cloudWords.has(word) && !processedWords.has(word)) {
-							result.toUpload.push({
-								word,
-								action: 'upload',
-								reason: t('sync_reason_local_new'),
-							});
-							processedWords.add(word);
-						}
-					}
-				} else if (resolution.addedAction === 'delete_local') {
-					for (const word of localSet) {
-						if (!manifestWords.has(word) && !cloudWords.has(word) && !processedWords.has(word)) {
-							result.toDeleteLocal.push({
-								word,
-								action: 'delete_local',
-								reason: t('sync_reason_unknown_file'),
-							});
-							processedWords.add(word);
-						}
-					}
-				}
-			}
-
-			// ===== 正常同步逻辑（四阶段）=====
 			
-			// 1. 欧路新增（云端有，本地无）→ 下载到本地
-			// 不管 manifest，只要云端有、本地没有就下载
-			for (const word of cloudWords) {
-				if (!localSet.has(word) && !processedWords.has(word)) {
-					result.toDownload.push({
-						word,
-						action: 'download',
-						reason: t('sync_reason_remote_only'),
-					});
-					processedWords.add(word);
+			const M = new Set((manifest?.syncedWords || []).map(w => w.toLowerCase()));
+			const L = await this.fetchLocalWords();
+			const C = await this.fetchCloudWords();
+
+			for (const word of L) {
+				if (!M.has(word) && !C.has(word)) {
+					result.localAdded.push(word);
 				}
 			}
 
-			// 2. 欧路删除（manifest 有，云端无，本地有）→ 删除本地文件
-			for (const word of manifestWords) {
-				if (!cloudWords.has(word) && localSet.has(word) && !processedWords.has(word)) {
-					result.toDeleteLocal.push({
-						word,
-						action: 'delete_local',
-						reason: t('sync_reason_cloud_deleted'),
-					});
-					processedWords.add(word);
+			for (const word of C.keys()) {
+				if (!M.has(word) && !L.has(word)) {
+					result.cloudAdded.push(word);
 				}
 			}
 
-			// 3. 本地新增（本地有，云端无）→ 上传到欧路
-			// 不管 manifest，只要本地有、云端没有就上传
-			for (const word of localSet) {
-				if (!cloudWords.has(word) && !processedWords.has(word)) {
-					result.toUpload.push({
-						word,
-						action: 'upload',
-						reason: t('sync_reason_local_new'),
-					});
-					processedWords.add(word);
+			for (const word of M) {
+				if (C.has(word) && !L.has(word)) {
+					result.localDeleted.push(word);
 				}
 			}
 
-			// 4. 本地删除（manifest 有，本地无，云端有）→ 删除云端
-			// 只有之前同步过的单词（在 manifest 中）才删除云端
-			for (const word of manifestWords) {
-				if (!localSet.has(word) && cloudWords.has(word) && !processedWords.has(word)) {
-					result.toDeleteFromCloud.push({
-						word,
-						action: 'delete_from_cloud',
-						reason: t('sync_reason_local_deleted'),
-					});
-					processedWords.add(word);
+			for (const word of M) {
+				if (L.has(word) && !C.has(word)) {
+					result.cloudDeleted.push(word);
 				}
 			}
 
 		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-			result.errors.push(errorMsg);
+			result.errors.push(error instanceof Error ? error.message : 'Unknown error');
 		}
 
 		return result;
 	}
 
 	async executeSync(
-		dryRunResult: SyncDryRunResult, 
-		progressCallback?: (current: number, total: number, word: string) => void
+		dryRunResult: SyncDryRunResult,
+		progressCallback?: (current: number, total: number, word: string) => void,
+		abortSignal?: { aborted: boolean }
 	): Promise<SyncResult> {
 		if (this.isSyncing) {
 			return {
 				success: false,
-				uploaded: 0,
-				downloaded: 0,
-				deletedFromCloud: 0,
-				deletedLocal: 0,
-				skipped: 0,
+				aborted: false,
+				stats: { uploaded: 0, downloaded: 0, deletedFromCloud: 0, trashedLocally: 0, failed: 0 },
 				errors: ['Sync already in progress'],
 			};
 		}
 
 		this.isSyncing = true;
-		this.shouldAbort = false;
 
-		const result: SyncResult = {
-			success: false,
+		const stats = {
 			uploaded: 0,
 			downloaded: 0,
 			deletedFromCloud: 0,
-			deletedLocal: 0,
-			skipped: 0,
-			errors: [...dryRunResult.errors],
+			trashedLocally: 0,
+			failed: 0,
 		};
 
-		const totalOps = dryRunResult.toDeleteFromCloud.length + 
-			dryRunResult.toDownload.length + 
-			dryRunResult.toUpload.length + 
-			dryRunResult.toDeleteLocal.length;
+		const errors: string[] = [...dryRunResult.errors];
 
+		const allOps = [
+			...dryRunResult.localDeleted.map(w => ({ type: 'delete_cloud' as const, word: w })),
+			...dryRunResult.cloudAdded.map(w => ({ type: 'download' as const, word: w })),
+			...dryRunResult.localAdded.map(w => ({ type: 'upload' as const, word: w })),
+			...dryRunResult.cloudDeleted.map(w => ({ type: 'trash_local' as const, word: w })),
+		];
+
+		const total = allOps.length;
 		let current = 0;
-		const delayMs = this.settings.apiDelayMs || DEFAULT_API_DELAY_MS;
 
 		try {
-			// Phase 1: 删除云端（本地删除的单词）
-			current = await this.processPhase(
-				dryRunResult.toDeleteFromCloud,
-				'delete_from_cloud',
-				current, totalOps,
-				result,
-				progressCallback,
-				async (change) => {
-					const listId = this.settings.eudicDefaultListId || '0';
-					await withTimeout(
-						this.eudicService.deleteWords(listId, [change.word]),
-						API_TIMEOUT_MS,
-						`deleteWords(${change.word})`
-					);
-					result.deletedFromCloud++;
-				},
-				delayMs
-			);
+			for (const op of allOps) {
+				if (abortSignal?.aborted) break;
 
-			// Phase 2: 下载（欧路新增的单词）
-			const remoteData = this.cachedRemoteData || new Map();
-			current = await this.processPhase(
-				dryRunResult.toDownload,
-				'download',
-				current, totalOps,
-				result,
-				progressCallback,
-				async (change) => {
-					await this.downloadWord(change.word, remoteData.get(change.word)?.exp, result);
-				},
-				delayMs
-			);
+				current++;
+				progressCallback?.(current, total, op.word);
 
-			// Phase 3: 上传（本地新增的单词）
-			current = await this.processPhase(
-				dryRunResult.toUpload,
-				'upload',
-				current, totalOps,
-				result,
-				progressCallback,
-				async (change) => {
-					await this.uploadWord(change.word, result);
-				},
-				delayMs
-			);
+				try {
+					switch (op.type) {
+						case 'delete_cloud':
+							await this.deleteFromCloud(op.word);
+							stats.deletedFromCloud++;
+							break;
 
-			// Phase 4: 删除本地（欧路删除的单词）
-			await this.processPhase(
-				dryRunResult.toDeleteLocal,
-				'delete_local',
-				current, totalOps,
-				result,
-				progressCallback,
-				async (change) => {
-					await this.deleteLocalWord(change.word, result);
-				},
-				delayMs
-			);
+						case 'download':
+							await this.downloadWord(op.word);
+							stats.downloaded++;
+							break;
 
-			result.success = !this.shouldAbort && result.errors.length === dryRunResult.errors.length;
-			
-			// 同步成功后保存 manifest
-			if (result.success) {
-				const finalCloudWords = await this.fetchRemoteWordData();
-				await this.saveManifest(Array.from(finalCloudWords.keys()));
-			}
-			
-		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-			result.errors.push(`Fatal error: ${errorMsg}`);
-		} finally {
-			this.isSyncing = false;
-			this.cachedRemoteData = null;
-		}
+						case 'upload':
+							await this.uploadToCloud(op.word);
+							stats.uploaded++;
+							break;
 
-		return result;
-	}
-
-	private async processPhase(
-		changes: SyncChange[],
-		phaseName: string,
-		startIndex: number,
-		totalOps: number,
-		result: SyncResult,
-		progressCallback: ((current: number, total: number, word: string) => void) | undefined,
-		operation: (change: SyncChange) => Promise<void>,
-		delayMs: number
-	): Promise<number> {
-		let current = startIndex;
-		
-		for (const change of changes) {
-			if (this.shouldAbort) break;
-			
-			current++;
-			progressCallback?.(current, totalOps, change.word);
-			
-			try {
-				await operation(change);
-			} catch (err) {
-				const errorMsg = err instanceof Error ? err.message : String(err);
-				result.errors.push(`${phaseName} "${change.word}" failed: ${errorMsg}`);
-			}
-			
-			await delay(delayMs);
-		}
-		
-		return current;
-	}
-
-	private async fetchRemoteWordData(): Promise<Map<string, EudicWordData>> {
-		const data = new Map<string, EudicWordData>();
-		const listId = this.settings.eudicDefaultListId || '0';
-		const pageSize = 100;
-		let page = 1;
-
-		while (true) {
-			const batch = await this.eudicService.getWords(listId, 'en', page, pageSize);
-			if (batch.length === 0) break;
-
-			for (const w of batch) {
-				const word = w.word?.trim().toLowerCase();
-				if (word) {
-					data.set(word, { word, exp: w.exp });
+						case 'trash_local':
+							await this.trashLocalFile(op.word);
+							stats.trashedLocally++;
+							break;
+					}
+				} catch (error) {
+					const msg = error instanceof Error ? error.message : String(error);
+					console.error(`[LinkDict] ${op.type} "${op.word}" failed:`, msg);
+					errors.push(`${op.type} "${op.word}": ${msg}`);
+					stats.failed++;
 				}
 			}
 
-			if (batch.length < pageSize) break;
-			page++;
+			if (!abortSignal?.aborted) {
+				const cloudWords = await this.fetchCloudWords();
+				await this.saveManifest(Array.from(cloudWords.keys()));
+			}
+
+		} catch (error) {
+			errors.push(error instanceof Error ? error.message : 'Unknown error');
+		} finally {
+			this.isSyncing = false;
 		}
 
-		return data;
-	}
-
-	private async fetchLocalWords(): Promise<string[]> {
-		const folderPath = this.settings.folderPath;
-		const folder = this.app.vault.getAbstractFileByPath(folderPath);
-
-		if (!(folder instanceof TFolder)) {
-			return [];
-		}
-
-		return folder.children
-			.filter((child): child is TFile => child instanceof TFile && child.extension === 'md')
-			.map(file => file.basename.toLowerCase());
-	}
-
-	private async downloadWord(word: string, eudicExp: string | undefined, result: SyncResult): Promise<void> {
-		const folderPath = this.settings.folderPath;
-		const filePath = `${folderPath}/${word}.md`;
-
-		if (await this.app.vault.adapter.exists(filePath)) {
-			result.skipped++;
-			return;
-		}
-
-		await this.ensureFolderExists(folderPath);
-
-		const frontmatter: Frontmatter = {
-			tags: ['vocabulary'],
-			dict_source: 'eudic',
+		return {
+			success: !abortSignal?.aborted && stats.failed === 0,
+			aborted: abortSignal?.aborted || false,
+			stats,
+			errors,
 		};
-
-		let content = `---\n${stringifyYaml(frontmatter)}---\n\n`;
-		content += `# ${word}\n\n`;
-		content += `## ${t('view_definitions')}\n\n`;
-		content += eudicExp ? `- ${eudicExp}\n\n` : `*Definition pending update*\n\n`;
-		content += `> [!info] Eudic Sync\n`;
-		content += `> [🔄 ${t('sync_clickToUpdate')}](obsidian://linkdict?action=update&word=${encodeURIComponent(word)})\n`;
-
-		await withTimeout(
-			this.app.vault.create(filePath, content),
-			FILE_TIMEOUT_MS,
-			`vault.create(${word})`
-		);
-		result.downloaded++;
 	}
 
-	private async uploadWord(word: string, result: SyncResult): Promise<void> {
-		const listId = this.settings.eudicDefaultListId || '0';
-		
+	private async deleteFromCloud(word: string): Promise<void> {
+		const categoryIds = this.settings.syncCategoryIds.length > 0
+			? this.settings.syncCategoryIds
+			: [this.settings.eudicDefaultListId || '0'];
+
+		for (const categoryId of categoryIds) {
+			await withTimeout(
+				this.eudicService.deleteWords(categoryId, [word]),
+				API_TIMEOUT_MS,
+				`deleteWords(${word})`
+			);
+		}
+	}
+
+	private async uploadToCloud(word: string): Promise<void> {
+		const file = this.getLocalFileByWord(word);
+
+		let targetCategoryId = this.settings.defaultUploadCategoryId || this.settings.eudicDefaultListId || '0';
+
+		if (file) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			const eudicLists = cache?.frontmatter?.eudic_lists;
+
+			if (Array.isArray(eudicLists) && eudicLists.length > 0) {
+				await this.loadCategoryMapping();
+				
+				for (const listName of eudicLists) {
+					for (const [id, name] of this.categoryIdToName) {
+						if (name === listName) {
+							targetCategoryId = id;
+							break;
+						}
+					}
+				}
+			}
+		}
+
 		await withTimeout(
-			this.eudicService.addWords(listId, [word]),
+			this.eudicService.addWords(targetCategoryId, [word]),
 			API_TIMEOUT_MS,
 			`addWords(${word})`
 		);
-
-		result.uploaded++;
 	}
 
-	private async deleteLocalWord(word: string, result: SyncResult): Promise<void> {
-		const filePath = `${this.settings.folderPath}/${word}.md`;
-		const file = this.app.vault.getAbstractFileByPath(filePath);
+	private async downloadWord(word: string): Promise<void> {
+		const folderPath = this.settings.folderPath;
+		const validFilename = getValidFilename(word);
+		const filePath = `${folderPath}/${validFilename}.md`;
+
+		const wordData = this.cloudWordsWithCategories.get(word);
+		const exp = wordData?.exp || '';
+		const categories = wordData?.categories || [];
+		const originalWord = wordData?.originalWord || word;
+
+		if (await this.app.vault.adapter.exists(filePath)) {
+			const file = this.app.vault.getAbstractFileByPath(filePath);
+			if (file instanceof TFile) {
+				await this.app.fileManager.processFrontMatter(file, (fm) => {
+					fm.eudic_lists = categories;
+					fm.word = originalWord;
+				});
+			}
+			return;
+		}
+
+		await this.ensureFolder(folderPath);
+
+		const content = this.generateMarkdown(originalWord, exp, categories);
+		await withTimeout(
+			this.app.vault.create(filePath, content),
+			FILE_TIMEOUT_MS,
+			`create(${word})`
+		);
+	}
+
+	private async trashLocalFile(word: string): Promise<void> {
+		const file = this.getLocalFileByWord(word);
 
 		if (file instanceof TFile) {
-			await this.app.vault.delete(file);
-			result.deletedLocal++;
+			await this.app.vault.trash(file, false);
 		} else {
-			result.skipped++;
+			console.warn(`[LinkDict] File not found for trashing: ${word}`);
 		}
 	}
 
-	private async ensureFolderExists(folderPath: string): Promise<void> {
-		if (!await this.app.vault.adapter.exists(folderPath)) {
-			await this.app.vault.createFolder(folderPath);
+	private generateMarkdown(originalWord: string, exp: string, categories: string[]): string {
+		const fm: Frontmatter = {
+			tags: ['vocabulary'],
+			dict_source: 'eudic',
+			word: originalWord,
+			eudic_lists: categories.length > 0 ? categories : undefined,
+		};
+
+		let md = `---\n${stringifyYaml(fm)}---\n\n`;
+		md += `# ${originalWord}\n\n`;
+		md += `## ${t('view_definitions')}\n\n`;
+		md += this.formatExp(exp);
+		md += `\n`;
+		md += `> [!info] ${t('sync_eudicSync')}\n`;
+		md += `> [🔄 ${t('sync_clickToUpdate')}](obsidian://linkdict?cmd=update&word=${encodeURIComponent(originalWord)})\n`;
+
+		return md;
+	}
+
+	private formatExp(exp: string): string {
+		if (!exp) return `*${t('sync_definitionPending')}*\n`;
+
+		let text = exp;
+
+		text = text.replace(/<[^>]+>/g, ' ');
+
+		text = text.replace(/\.\.\./g, '').trim();
+
+		const posPattern = /;?\s*(adj|adv|art|aux|conj|int|n|num|prep|pron|v|vi|vt)\.\s*/gi;
+
+		text = text.replace(posPattern, '\n- ***$1.*** ');
+
+		text = text.replace(/\n- /, '- ');
+
+		const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+		if (lines.length === 0) return `*${t('sync_definitionPending')}*\n`;
+
+		return lines.map(l => l.startsWith('- ') ? l : `- ${l}`).join('\n') + '\n';
+	}
+
+	private async ensureFolder(path: string): Promise<void> {
+		if (!await this.app.vault.adapter.exists(path)) {
+			await this.app.vault.createFolder(path);
 		}
 	}
 
-	/**
-	 * 处理文件创建事件
-	 * 如果启用了 autoAddToEudic，立即上传到云端
-	 */
-	async handleFileCreated(file: TFile): Promise<void> {
-		if (this.isSyncing) return;
-		if (file.extension !== 'md') return;
-		if (!file.path.startsWith(this.settings.folderPath)) return;
-
-		const word = file.basename;
-		if (!word || !/^[a-zA-Z]+(-[a-zA-Z]+)*$/.test(word)) return;
-		if (!this.settings.autoAddToEudic) return;
-
-		try {
-			const listId = this.settings.eudicDefaultListId || '0';
-			await withTimeout(
-				this.eudicService.addWords(listId, [word]),
-				API_TIMEOUT_MS,
-				`addWords(${word})`
-			);
-			console.log(`[LinkDict] Auto-uploaded "${word}" to cloud`);
-		} catch (error) {
-			console.error(`[LinkDict] Failed to auto-upload "${word}":`, error);
-		}
-	}
-
-	/**
-	 * 处理文件删除事件
-	 * 如果启用了同步，立即从云端删除
-	 */
 	async handleFileDeleted(file: TFile): Promise<void> {
 		if (this.isSyncing) return;
 		if (file.extension !== 'md') return;
 		if (!file.path.startsWith(this.settings.folderPath)) return;
 
-		const word = file.basename.toLowerCase();
-		if (!word) return;
+		const cache = this.app.metadataCache.getFileCache(file);
+		const realWord = cache?.frontmatter?.word || file.basename;
+		const wordLower = realWord.toLowerCase();
 
-		// 标记为插件主动删除（用于区分外部删除）
-		pluginDeletedWords.add(word);
+		if (!wordLower) return;
 
-		// 无论云端删除是否成功，都要从 manifest 中移除
-		// 因为本地文件已被删除，manifest 不应再包含它
-		await this.removeWordFromManifest(word);
-
-		// 如果启用了同步，尝试从云端删除
-		if (this.settings.enableSync) {
-			try {
-				const listId = this.settings.eudicDefaultListId || '0';
-				await withTimeout(
-					this.eudicService.deleteWords(listId, [word]),
-					API_TIMEOUT_MS,
-					`deleteWords(${word})`
-				);
-				console.log(`[LinkDict] Auto-deleted "${word}" from cloud`);
-			} catch (error) {
-				// 单词可能已在云端不存在，忽略错误
-				console.log(`[LinkDict] Note: "${word}" may not exist in cloud`);
-			}
+		const manifest = await this.loadManifest();
+		if (manifest) {
+			manifest.syncedWords = manifest.syncedWords.filter(w => w.toLowerCase() !== wordLower);
+			await this.saveManifest(manifest.syncedWords);
 		}
 	}
 }

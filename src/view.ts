@@ -2,6 +2,7 @@ import {ItemView, WorkspaceLeaf, setIcon, setTooltip} from 'obsidian';
 import LinkDictPlugin from './main';
 import {DictEntry} from './types';
 import {t} from './i18n';
+import {renderPhoneticButtons} from './ui/phonetic-renderer';
 
 export class DictionaryView extends ItemView {
 	plugin: LinkDictPlugin;
@@ -89,25 +90,33 @@ export class DictionaryView extends ItemView {
 			return;
 		}
 
-		const result = await this.plugin.findEntry(word, false);
+		try {
+			const result = await this.plugin.findEntry(word, false);
 
-		if (!result) {
+			if (!result) {
+				this.resultContainer.empty();
+				const message = this.resultContainer.createEl('p');
+				message.addClass('link-dict-message');
+				const textSpan = message.createEl('span');
+				textSpan.setText(`${t('ui_noDefinitionFound')} `);
+				const strongSpan = message.createEl('strong');
+				strongSpan.setText(word);
+				return;
+			}
+
+			const { entry, word: lemma } = result;
+			this.currentWord = lemma;
+			this.currentEntry = entry;
+
+			this.resultContainer.empty();
+			this.renderEntry(entry, lemma);
+		} catch (error) {
 			this.resultContainer.empty();
 			const message = this.resultContainer.createEl('p');
 			message.addClass('link-dict-message');
-			const textSpan = message.createEl('span');
-			textSpan.setText(`${t('ui_noDefinitionFound')} `);
-			const strongSpan = message.createEl('strong');
-			strongSpan.setText(word);
-			return;
+			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+			message.setText(`Error: ${errorMsg}`);
 		}
-
-		const { entry, word: lemma } = result;
-		this.currentWord = lemma;
-		this.currentEntry = entry;
-
-		this.resultContainer.empty();
-		this.renderEntry(entry, lemma);
 	}
 
 	private renderEntry(entry: DictEntry, word: string) {
@@ -120,33 +129,7 @@ export class DictionaryView extends ItemView {
 		const title = headerLeft.createEl('h1', { cls: 'dict-title' });
 		title.textContent = word;
 
-		if (entry.ph_uk || entry.ph_us) {
-			const phoneticContainer = headerLeft.createEl('div', { cls: 'dict-phonetic-container' });
-
-			if (entry.ph_uk) {
-				const ukPhoneticBtn = phoneticContainer.createEl('div', { cls: 'dict-phonetic-btn' });
-				ukPhoneticBtn.textContent = `${t('view_uk')} /${entry.ph_uk}/`;
-				if (entry.audio_uk) {
-					ukPhoneticBtn.addEventListener('click', () => {
-						void new Audio(entry.audio_uk).play();
-					});
-				}
-				phoneticContainer.appendChild(ukPhoneticBtn);
-			}
-
-			if (entry.ph_us) {
-				const usPhoneticBtn = phoneticContainer.createEl('div', { cls: 'dict-phonetic-btn' });
-				usPhoneticBtn.textContent = `${t('view_us')} /${entry.ph_us}/`;
-				if (entry.audio_us) {
-					usPhoneticBtn.addEventListener('click', () => {
-						void new Audio(entry.audio_us).play();
-					});
-				}
-				phoneticContainer.appendChild(usPhoneticBtn);
-			}
-
-			headerLeft.appendChild(phoneticContainer);
-		}
+		renderPhoneticButtons(headerLeft, entry);
 
 		if (entry.definitions.length > 0) {
 			const definitionsList = container.createEl('div', { cls: 'dict-definitions-list' });
@@ -188,9 +171,9 @@ export class DictionaryView extends ItemView {
 	}
 
 	private renderExtendedData(container: HTMLElement, entry: DictEntry) {
-		if (this.plugin.settings.showWebTrans && entry.webTrans && entry.webTrans.length > 0) {
-			this.renderSection(container, t('view_webTranslations'), 'dict-web-trans', true, entry.webTrans, (details) => {
-				const webList = details.createEl('ul', { cls: 'dict-web-list' });
+		if (entry.webTrans && entry.webTrans.length > 0) {
+			this.renderSection(container, t('view_webTranslations'), 'dict-web-trans', entry.webTrans, (section) => {
+				const webList = section.createEl('ul', { cls: 'dict-web-list' });
 				entry.webTrans!.forEach(item => {
 					const li = webList.createEl('li', { cls: 'dict-web-item' });
 					const keyEl = li.createEl('span', { cls: 'dict-web-key' });
@@ -201,9 +184,9 @@ export class DictionaryView extends ItemView {
 			});
 		}
 
-		if (this.plugin.settings.showExamples && entry.bilingualExamples && entry.bilingualExamples.length > 0) {
-			this.renderSection(container, t('view_examples'), 'dict-examples', true, entry.bilingualExamples, (details) => {
-				const examplesList = details.createEl('div', { cls: 'dict-examples-list' });
+		if (entry.bilingualExamples && entry.bilingualExamples.length > 0) {
+			this.renderSection(container, t('view_examples'), 'dict-examples', entry.bilingualExamples, (section) => {
+				const examplesList = section.createEl('div', { cls: 'dict-examples-list' });
 				entry.bilingualExamples!.forEach(example => {
 					const exampleRow = examplesList.createEl('div', { cls: 'dict-example-row' });
 					const enEl = exampleRow.createEl('p', { cls: 'dict-example-en' });
@@ -219,17 +202,16 @@ export class DictionaryView extends ItemView {
 		container: HTMLElement,
 		title: string,
 		className: string,
-		showSetting: boolean,
 		data: T | undefined,
-		renderContentFn: (details: HTMLElement) => void
+		renderContentFn: (section: HTMLElement) => void
 	): void {
-		if (!showSetting || !data) {
+		if (!data) {
 			return;
 		}
 
-		const details = container.createEl('details', { cls: `dict-section ${className}` });
-		const summary = details.createEl('summary');
-		summary.textContent = title;
-		renderContentFn(details);
+		const section = container.createEl('div', { cls: `dict-section ${className}` });
+		const titleEl = section.createEl('h3', { cls: 'dict-section-title' });
+		titleEl.textContent = title;
+		renderContentFn(section);
 	}
 }

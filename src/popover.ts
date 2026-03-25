@@ -2,6 +2,7 @@ import {Editor, setIcon, setTooltip} from 'obsidian';
 import LinkDictPlugin from './main';
 import {DictEntry, EditorWithCM} from './types';
 import {t} from './i18n';
+import {renderPhoneticButtons} from './ui/phonetic-renderer';
 
 export class DefinitionPopover {
 	private overlay: HTMLElement | null = null;
@@ -77,12 +78,13 @@ export class DefinitionPopover {
 		this.renderContent();
 
 		this.abortController = new AbortController();
+		const ac = this.abortController;
 		setTimeout(() => {
-			if (this.overlay) {
+			if (this.overlay && !ac.signal.aborted) {
 				this.overlay.classList.add('active');
 				window.addEventListener('mousedown', this.onWindowClick, { 
 					capture: true, 
-					signal: this.abortController!.signal 
+					signal: ac.signal 
 				});
 			}
 		}, 10);
@@ -135,35 +137,8 @@ export class DefinitionPopover {
 		title.textContent = this.originalWord;
 		headerLeft.appendChild(title);
 
-		if (this.entry.ph_uk || this.entry.ph_us) {
-			const phoneticContainer = document.createElement('div');
-			phoneticContainer.className = 'dict-phonetic-container';
-
-			if (this.entry.ph_uk) {
-				const ukPhoneticBtn = document.createElement('div');
-				ukPhoneticBtn.className = 'dict-phonetic-btn';
-				ukPhoneticBtn.textContent = `${t('view_uk')} /${this.entry.ph_uk}/`;
-				if (this.entry.audio_uk) {
-					ukPhoneticBtn.addEventListener('click', () => {
-						void new Audio(this.entry!.audio_uk).play();
-					});
-				}
-				phoneticContainer.appendChild(ukPhoneticBtn);
-			}
-
-			if (this.entry.ph_us) {
-				const usPhoneticBtn = document.createElement('div');
-				usPhoneticBtn.className = 'dict-phonetic-btn';
-				usPhoneticBtn.textContent = `${t('view_us')} /${this.entry.ph_us}/`;
-				if (this.entry.audio_us) {
-					usPhoneticBtn.addEventListener('click', () => {
-						void new Audio(this.entry!.audio_us).play();
-					});
-				}
-				phoneticContainer.appendChild(usPhoneticBtn);
-			}
-
-			headerLeft.appendChild(phoneticContainer);
+		if (this.entry) {
+			renderPhoneticButtons(headerLeft, this.entry);
 		}
 
 		headerContainer.appendChild(headerLeft);

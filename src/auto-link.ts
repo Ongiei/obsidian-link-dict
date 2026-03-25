@@ -47,32 +47,51 @@ export class AutoLinkService {
 	}
 
 	async autoLinkCurrentDocument(editor: Editor): Promise<number> {
-		const localWords = this.buildLocalWordCache();
-		const linkedWords = new Set<string>();
+		try {
+			const localWords = this.buildLocalWordCache();
+			const linkedWords = new Set<string>();
 
-		const content = editor.getValue();
-		const lines = content.split('\n');
-		const newLines: string[] = [];
-		let inCodeBlock = false;
+			const content = editor.getValue();
 
-		for (const line of lines) {
-			if (line.trim().startsWith('```')) {
-				inCodeBlock = !inCodeBlock;
-				newLines.push(line);
-				continue;
+			const frontmatterRegex = /^---\r?\n[\s\S]*?\r?\n---\r?\n/;
+			let frontmatter = '';
+			let body = content;
+
+			const fmMatch = content.match(frontmatterRegex);
+			if (fmMatch) {
+				frontmatter = fmMatch[0];
+				body = content.slice(frontmatter.length);
 			}
 
-			if (inCodeBlock) {
-				newLines.push(line);
-				continue;
+			const lines = body.split('\n');
+			const newLines: string[] = [];
+			let inCodeBlock = false;
+
+			for (const line of lines) {
+				if (line.trim().startsWith('```')) {
+					inCodeBlock = !inCodeBlock;
+					newLines.push(line);
+					continue;
+				}
+
+				if (inCodeBlock) {
+					newLines.push(line);
+					continue;
+				}
+
+				const processedLine = this.processLine(line, localWords, linkedWords);
+				newLines.push(processedLine);
 			}
 
-			const processedLine = this.processLine(line, localWords, linkedWords);
-			newLines.push(processedLine);
+			const newBody = newLines.join('\n');
+			const newText = frontmatter + newBody;
+
+			editor.setValue(newText);
+			return linkedWords.size;
+		} catch (error) {
+			console.error('[LinkDict] Auto-link failed:', error);
+			return 0;
 		}
-
-		editor.setValue(newLines.join('\n'));
-		return linkedWords.size;
 	}
 
 	private processLine(line: string, localWords: Set<string>, linkedWords: Set<string>): string {

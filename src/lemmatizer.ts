@@ -1,25 +1,25 @@
 import {noun, verb, adjective} from 'wink-lemmatizer';
 
-export function getNoun(word: string): string {
+function getNoun(word: string): string {
 	return noun(word);
 }
 
-export function getVerb(word: string): string {
+function getVerb(word: string): string {
 	return verb(word);
 }
 
-export function getAdjective(word: string): string {
+function getAdjective(word: string): string {
 	return adjective(word);
 }
 
 export function getLemma(word: string): string {
-	const nounLemma = noun(word);
+	const nounLemma = getNoun(word);
 	if (nounLemma !== word) return nounLemma;
 	
-	const verbLemma = verb(word);
+	const verbLemma = getVerb(word);
 	if (verbLemma !== word) return verbLemma;
 	
-	const adjLemma = adjective(word);
+	const adjLemma = getAdjective(word);
 	if (adjLemma !== word) return adjLemma;
 	
 	return word;

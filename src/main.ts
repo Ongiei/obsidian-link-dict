@@ -1,4 +1,4 @@
-import {Editor, MarkdownView, Menu, Notice, Plugin, TFile, WorkspaceLeaf} from 'obsidian';
+import {Editor, MarkdownView, Menu, Notice, Plugin, TFile, TFolder, WorkspaceLeaf} from 'obsidian';
 import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings";
 import {DictionaryView} from "./view";
 import {DefinitionPopover} from "./popover";
@@ -8,29 +8,21 @@ import {getLemma} from "./lemmatizer";
 import {EudicService} from "./eudic";
 import {SyncService} from "./sync";
 import {AutoLinkService} from "./auto-link";
-import {BatchUpdateService, ProgressModal} from "./batch-update";
-import {ExternalChangesModal, SyncConfirmationModal} from "./modal";
-import {t, detectLanguage, setLanguage} from "./i18n";
-import type { ExternalChangesResolution } from "./sync";
+import {BatchUpdateService} from "./batch-update";
+import {ProgressNoticeWidget} from "./modal";
+import {t, setLanguage, detectLanguage} from "./i18n";
+import {MarkdownGenerator} from "./utils/markdown-generator";
 
 export const VIEW_TYPE_LINK_DICT = 'link-dict-view';
 
-const WORD_REGEX = /^[a-zA-Z]+(-[a-zA-Z]+)*$/;
+const WORD_REGEX = /^[a-zA-Z\s'-]+$/;
 
 function sanitizeWord(input: string): string {
-	return input.toLowerCase().trim().replace(/[^a-zA-Z-]/g, '');
+	return input.trim();
 }
 
 function isValidWord(word: string): boolean {
 	return word.length > 0 && word.length <= 50 && WORD_REGEX.test(word);
-}
-
-function escapeYamlString(str: string): string {
-	if (!str) return str;
-	if (str.includes(':') || str.includes("'") || str.includes('"') || str.includes('\n') || str.includes('#')) {
-		return `'${str.replace(/'/g, "''")}'`;
-	}
-	return str;
 }
 
 export default class LinkDictPlugin extends Plugin {
@@ -44,24 +36,16 @@ export default class LinkDictPlugin extends Plugin {
 	private startupSyncTimeout: number | null = null;
 	private syncRibbonIcon: HTMLElement | null = null;
 	private batchRibbonIcon: HTMLElement | null = null;
+	private autoLinkRibbonIcon: HTMLElement | null = null;
 
 	async onload() {
 		await this.loadSettings();
-		this.initLanguage();
-
-		// Expose debug methods to window for CLI access
-		(window as unknown as { 
-			__linkDictPlugin: LinkDictPlugin;
-			__getLinkDictLogs: () => string[];
-		}).__linkDictPlugin = this;
-		(window as unknown as { 
-			__linkDictPlugin: LinkDictPlugin;
-			__getLinkDictLogs: () => string[];
-		}).__getLinkDictLogs = () => {
-			const syncService = this.syncService;
-			if (!syncService) return [];
-			return (syncService as unknown as { getLogs: () => string[] }).getLogs?.() || [];
-		};
+		
+		if (this.settings.language === 'auto') {
+			setLanguage(detectLanguage());
+		} else {
+			setLanguage(this.settings.language as 'en' | 'zh');
+		}
 
 		this.registerView(VIEW_TYPE_LINK_DICT, (leaf) => new DictionaryView(leaf, this));
 
@@ -93,14 +77,6 @@ export default class LinkDictPlugin extends Plugin {
 		this.clearStartupSyncTimeout();
 	}
 
-	private initLanguage(): void {
-		if (this.settings.language === 'auto') {
-			setLanguage(detectLanguage());
-		} else {
-			setLanguage(this.settings.language as 'en' | 'zh');
-		}
-	}
-
 	private initEudicServices(): void {
 		if (!this.settings.eudicToken) return;
 
@@ -109,7 +85,6 @@ export default class LinkDictPlugin extends Plugin {
 			this.app,
 			this.settings,
 			this.eudicService,
-			() => this.saveSettings(),
 			() => this.loadData(),
 			(data) => this.saveData(data)
 		);
@@ -124,15 +99,29 @@ export default class LinkDictPlugin extends Plugin {
 			this.batchRibbonIcon.remove();
 			this.batchRibbonIcon = null;
 		}
+		if (this.autoLinkRibbonIcon) {
+			this.autoLinkRibbonIcon.remove();
+			this.autoLinkRibbonIcon = null;
+		}
 
 		if (this.settings.eudicToken && this.settings.enableSync) {
 			this.syncRibbonIcon = this.addRibbonIcon('refresh-cw', t('commands_syncPreview'), () => {
-				void this.performSyncPreview();
+				void this.performSync(false);
 			});
 		}
 
 		this.batchRibbonIcon = this.addRibbonIcon('layers', t('commands_batchUpdate'), () => {
 			void this.performBatchUpdate();
+		});
+
+		this.autoLinkRibbonIcon = this.addRibbonIcon('link', t('commands_autoLinkDocument'), () => {
+			const activeLeaf = this.app.workspace.activeLeaf;
+			if (activeLeaf && activeLeaf.view instanceof MarkdownView) {
+				const editor = activeLeaf.view.editor;
+				void this.autoLinkDocument(editor);
+			} else {
+				new Notice(t('notice_pleaseOpenMarkdown'));
+			}
 		});
 	}
 
@@ -178,12 +167,18 @@ export default class LinkDictPlugin extends Plugin {
 					return;
 				}
 				const popover = new DefinitionPopover(this, editor, word);
-				const result = await this.findEntry(word, false);
-				if (result) {
-					popover.setEntry(result.entry);
-				} else {
+				try {
+					const result = await this.findEntry(word, false);
+					if (result) {
+						popover.setEntry(result.entry);
+					} else {
+						popover.close();
+						new Notice(`${t('ui_noDefinitionFound')} ${word}`);
+					}
+				} catch (error) {
 					popover.close();
-					new Notice(`${t('ui_noDefinitionFound')} ${word}`);
+					const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+					new Notice(t('notice_syncFailed', { error: errorMsg }));
 				}
 			}
 		});
@@ -192,7 +187,7 @@ export default class LinkDictPlugin extends Plugin {
 			id: 'sync-preview',
 			name: t('commands_syncPreview'),
 			callback: () => {
-				void this.performSyncPreview();
+				void this.performSync(false);
 			}
 		});
 
@@ -251,12 +246,18 @@ export default class LinkDictPlugin extends Plugin {
 								return;
 							}
 							const popover = new DefinitionPopover(this, editor, word);
-							const result = await this.findEntry(word, false);
-							if (result) {
-								popover.setEntry(result.entry);
-							} else {
+							try {
+								const result = await this.findEntry(word, false);
+								if (result) {
+									popover.setEntry(result.entry);
+								} else {
+									popover.close();
+									new Notice(`${t('ui_noDefinitionFound')} ${word}`);
+								}
+							} catch (error) {
 								popover.close();
-								new Notice(`${t('ui_noDefinitionFound')} ${word}`);
+								const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+								new Notice(t('notice_syncFailed', { error: errorMsg }));
 							}
 						});
 				});
@@ -265,14 +266,6 @@ export default class LinkDictPlugin extends Plugin {
 	}
 
 	private registerEventHandlers(): void {
-		this.registerEvent(
-			this.app.vault.on('create', (file) => {
-				if (file instanceof TFile && file.extension === 'md') {
-					void this.handleFileCreated(file);
-				}
-			})
-		);
-		
 		this.registerEvent(
 			this.app.vault.on('delete', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
@@ -284,7 +277,7 @@ export default class LinkDictPlugin extends Plugin {
 
 	private registerProtocolHandler(): void {
 		this.registerObsidianProtocolHandler('linkdict', async (params) => {
-			const action = params.action;
+			const cmd = params.cmd;
 			const rawWord = params.word || '';
 			
 			const word = sanitizeWord(rawWord);
@@ -293,7 +286,7 @@ export default class LinkDictPlugin extends Plugin {
 				return;
 			}
 
-			if (action === 'update') {
+			if (cmd === 'update') {
 				await this.updateWordFromProtocol(word);
 			}
 		});
@@ -328,7 +321,7 @@ export default class LinkDictPlugin extends Plugin {
 		this.clearStartupSyncTimeout();
 		const delayMs = Math.max(0, this.settings.startupDelay) * 1000;
 		this.startupSyncTimeout = window.setTimeout(() => {
-			void this.performSyncPreview();
+			void this.performSync(true);
 		}, delayMs);
 	}
 
@@ -350,7 +343,7 @@ export default class LinkDictPlugin extends Plugin {
 	private startSyncTimer(): void {
 		const intervalMs = Math.max(5, this.settings.syncInterval) * 60 * 1000;
 		this.syncTimer = window.setInterval(() => {
-			void this.performSyncPreview();
+			void this.performSync(true);
 		}, intervalMs);
 		if (!this.syncTimerRegistered) {
 			this.registerInterval(this.syncTimer);
@@ -363,82 +356,77 @@ export default class LinkDictPlugin extends Plugin {
 			window.clearInterval(this.syncTimer);
 			this.syncTimer = null;
 		}
+		this.syncTimerRegistered = false;
 	}
 
-	async performSyncPreview(): Promise<void> {
+	async performSync(isAutoSync = false): Promise<void> {
 		if (!this.syncService || !this.eudicService) {
-			new Notice(t('notice_noTokenConfigured'));
+			if (!isAutoSync) {
+				new Notice(t('notice_noTokenConfigured'));
+			}
 			return;
 		}
 
-		// 先显示分析中的提示
-		const notice = new Notice(t('sync_dry_run_running'), 0); // 0 = 不自动消失
-
 		try {
-			// Step 1: 检测外部变动
-			const externalChanges = await this.syncService.detectExternalChanges();
+			const dryRunResult = await this.syncService.dryRun();
 
-			// 隐藏分析中的提示
-			notice.hide();
+			const hasChanges = 
+				dryRunResult.localAdded.length > 0 || 
+				dryRunResult.cloudAdded.length > 0 || 
+				dryRunResult.localDeleted.length > 0 || 
+				dryRunResult.cloudDeleted.length > 0;
 
-			if (externalChanges) {
-				// Step 2: 显示外部变动弹窗
-				new ExternalChangesModal(
-					this.app,
-					externalChanges,
-					(resolution: ExternalChangesResolution) => {
-						void this.proceedWithDryRun(resolution);
-					},
-					() => {
-						new Notice(t('notice_syncCancelled'));
-					}
-				).open();
-			} else {
-				// 没有外部变动，直接进入 dryRun
-				void this.proceedWithDryRun();
-			}
-		} catch (error) {
-			notice.hide();
-			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-			new Notice(t('notice_syncFailed', { error: errorMsg }));
-		}
-	}
-
-	private async proceedWithDryRun(resolution?: ExternalChangesResolution): Promise<void> {
-		if (!this.syncService) return;
-
-		try {
-			const dryRunResult = await this.syncService.dryRun(resolution);
-
-			new SyncConfirmationModal(
-				this.app,
-				dryRunResult,
-				() => {
-					void this.executeSync(dryRunResult);
-				},
-				() => {
-					new Notice(t('notice_syncCancelled'));
+			if (!hasChanges) {
+				if (!isAutoSync) {
+					new Notice(t('sync_no_changes'), 2000);
 				}
-			).open();
+				return;
+			}
+
+			await this.executeSync(dryRunResult);
+
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-			new Notice(t('notice_syncFailed', { error: errorMsg }));
+			if (!isAutoSync) {
+				new Notice(t('notice_syncFailed', { error: errorMsg }));
+			}
+			console.error('[LinkDict] Sync failed:', errorMsg);
 		}
 	}
 
 	private async executeSync(dryRunResult: import('./sync').SyncDryRunResult): Promise<void> {
 		if (!this.syncService) return;
 
-		const result = await this.syncService.executeSync(dryRunResult, (current, total, word) => {
-			new Notice(t('notice_syncProgress', { current, total, word }), 3000);
-		});
+		const totalOps = dryRunResult.localDeleted.length + 
+			dryRunResult.cloudAdded.length + 
+			dryRunResult.localAdded.length + 
+			dryRunResult.cloudDeleted.length;
 
-		if (result.success) {
-			new Notice(t('notice_syncCompletedWithStats', {
-				uploaded: result.uploaded,
-				downloaded: result.downloaded,
-			}));
+		if (totalOps === 0) {
+			new Notice(t('sync_no_changes'));
+			return;
+		}
+
+		const abortSignal = { aborted: false };
+
+		const progressNotice = new ProgressNoticeWidget(
+			'sync',
+			totalOps,
+			() => {
+				abortSignal.aborted = true;
+			}
+		);
+
+		const result = await this.syncService.executeSync(dryRunResult, (current, total, word) => {
+			progressNotice.update(current, total, word);
+		}, abortSignal);
+
+		if (result.aborted) {
+			progressNotice.setAborted(result.stats.uploaded + result.stats.downloaded);
+		} else if (result.success) {
+			progressNotice.setComplete(result.stats.uploaded, result.stats.downloaded);
 		} else if (result.errors.length > 0) {
+			progressNotice.hide();
 			new Notice(t('notice_syncFailed', { error: result.errors[0] ?? 'Unknown error' }));
 		}
 	}
@@ -459,11 +447,6 @@ export default class LinkDictPlugin extends Plugin {
 		this.autoLinkService.invalidateCache();
 		const count = await this.autoLinkService.autoLinkCurrentDocument(editor);
 		new Notice(t('notice_autoLinkCompleted', { count }));
-	}
-
-	private async handleFileCreated(file: TFile): Promise<void> {
-		if (!this.syncService) return;
-		await this.syncService.handleFileCreated(file);
 	}
 
 	private async handleFileDeleted(file: TFile): Promise<void> {
@@ -529,13 +512,6 @@ export default class LinkDictPlugin extends Plugin {
 
 		const isNewFile = await this.createWordFile(lemma, entry, searchWord);
 
-		if (isNewFile && this.settings.eudicToken && this.settings.autoAddToEudic && this.syncService) {
-			const file = this.app.vault.getAbstractFileByPath(`${this.settings.folderPath}/${lemma}.md`);
-			if (file instanceof TFile) {
-				await this.syncService.handleFileCreated(file);
-			}
-		}
-
 		if (editor) {
 			const selectedText = editor.getSelection();
 			if (selectedText && selectedText.trim() !== '') {
@@ -550,100 +526,10 @@ export default class LinkDictPlugin extends Plugin {
 	}
 
 	generateMarkdown(word: string, entry: DictEntry, originalWord?: string): string {
-		const tags = new Set<string>(['vocabulary']);
-
-		if (this.settings.saveTags && entry.tags.length > 0) {
-			for (const tag of entry.tags) {
-				tags.add(`exam/${tag}`);
-			}
-		}
-
-		for (const def of entry.definitions) {
-			if (def.pos) {
-				const posTag = def.pos.replace(/\./g, '');
-				tags.add(`pos/${posTag}`);
-			}
-		}
-
-		const uniqueTags = Array.from(tags);
-
-		const aliases: string[] = [];
-		for (const item of entry.exchange) {
-			aliases.push(item.value);
-		}
-
-		if (originalWord && originalWord.toLowerCase() !== word.toLowerCase()) {
-			aliases.push(originalWord);
-		}
-
-		const uniqueAliases = [...new Set(aliases)].filter(a => a && a.trim() !== '');
-
-		let yaml = '---\n';
-		yaml += 'tags:\n';
-		for (const tag of uniqueTags) {
-			yaml += `  - ${escapeYamlString(tag)}\n`;
-		}
-		if (uniqueAliases.length > 0) {
-			yaml += 'aliases:\n';
-			for (const alias of uniqueAliases) {
-				yaml += `  - ${escapeYamlString(alias)}\n`;
-			}
-		}
-		yaml += '---\n\n';
-
-		let content = `# ${word}\n\n`;
-
-		if (entry.ph_uk || entry.ph_us) {
-			content += `## ${t('view_pronunciation')}\n\n`;
-			if (entry.ph_uk) {
-				content += `- ${t('view_uk')}: \`/${entry.ph_uk}/\`\n`;
-			}
-			if (entry.ph_us) {
-				content += `- ${t('view_us')}: \`/${entry.ph_us}/\`\n`;
-			}
-			content += '\n';
-		}
-
-		if (entry.definitions.length > 0) {
-			content += `## ${t('view_definitions')}\n\n`;
-			for (const def of entry.definitions) {
-				const escapedTrans = def.trans.replace(/\[/g, '\\[');
-				if (def.pos) {
-					content += `- ***${def.pos}*** ${escapedTrans}\n`;
-				} else {
-					content += `- ${escapedTrans}\n`;
-				}
-			}
-			content += '\n';
-		}
-
-		if (this.settings.showWebTrans && entry.webTrans && entry.webTrans.length > 0) {
-			content += `## ${t('view_webTranslations')}\n\n`;
-			for (const item of entry.webTrans) {
-				const numberedValues = item.value.map((v, i) => `${i + 1}. ${v}`).join(' ');
-				content += `- **${item.key}**: ${numberedValues}\n`;
-			}
-			content += '\n';
-		}
-
-		if (this.settings.showExamples && entry.bilingualExamples && entry.bilingualExamples.length > 0) {
-			content += `## ${t('view_examples')}\n\n`;
-			for (const example of entry.bilingualExamples) {
-				content += `- ${example.eng}\n`;
-				content += `  - ${example.chn}\n`;
-			}
-			content += '\n';
-		}
-
-		if (entry.exchange.length > 0) {
-			content += `## ${t('view_wordForms')}\n\n`;
-			for (const item of entry.exchange) {
-				content += `- ${item.name}: ${item.value}\n`;
-			}
-			content += '\n';
-		}
-
-		return yaml + content;
+		return MarkdownGenerator.generate(word, entry, {
+			saveTags: this.settings.saveTags,
+			originalWord,
+		});
 	}
 
 	async createWordFile(word: string, entry: DictEntry, originalWord?: string): Promise<boolean> {

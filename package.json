@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-link-dict",
-	"version": "2.0.1",
-	"description": "A lemma-first online dictionary plugin for Obsidian using Youdao. Look up words and generate markdown notes with automatic lemma redirection.",
+	"version": "3.0.1",
+	"description": "A lemma-first dictionary plugin for Obsidian with Eudic sync and smart wikilinks. Look up words and generate markdown notes with automatic lemma redirection.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
