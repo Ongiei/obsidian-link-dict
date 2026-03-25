@@ -423,7 +423,7 @@ export class SyncService {
 		if (await this.app.vault.adapter.exists(filePath)) {
 			const file = this.app.vault.getAbstractFileByPath(filePath);
 			if (file instanceof TFile) {
-				await this.app.fileManager.processFrontMatter(file, (fm) => {
+				await this.app.fileManager.processFrontMatter(file, (fm: Frontmatter) => {
 					fm.eudic_lists = categories;
 					fm.word = originalWord;
 				});
