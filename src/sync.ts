@@ -144,7 +144,7 @@ export class SyncService {
 
 		const categoryIds = this.settings.syncCategoryIds.length > 0 
 			? this.settings.syncCategoryIds 
-			: [this.settings.eudicDefaultListId || '0'];
+			: [this.settings.defaultUploadCategoryId || '0'];
 
 		const pageSize = 100;
 
@@ -368,7 +368,7 @@ export class SyncService {
 	private async deleteFromCloud(word: string): Promise<void> {
 		const categoryIds = this.settings.syncCategoryIds.length > 0
 			? this.settings.syncCategoryIds
-			: [this.settings.eudicDefaultListId || '0'];
+			: [this.settings.defaultUploadCategoryId || '0'];
 
 		for (const categoryId of categoryIds) {
 			await withTimeout(
@@ -382,7 +382,7 @@ export class SyncService {
 	private async uploadToCloud(word: string): Promise<void> {
 		const file = this.getLocalFileByWord(word);
 
-		let targetCategoryId = this.settings.defaultUploadCategoryId || this.settings.eudicDefaultListId || '0';
+		let targetCategoryId = this.settings.defaultUploadCategoryId || '0';
 
 		if (file) {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -478,11 +478,11 @@ export class SyncService {
 
 		text = text.replace(/\.\.\./g, '').trim();
 
-		const posPattern = /;?\s*(adj|adv|art|aux|conj|int|n|num|prep|pron|v|vi|vt)\.\s*/gi;
+		const posPattern = /(?:;|^)\s*(adj|adv|art|aux|conj|int|n|num|prep|pron|v|vi|vt)\.\s*/gm;
 
 		text = text.replace(posPattern, '\n- ***$1.*** ');
 
-		text = text.replace(/\n- /, '- ');
+		text = text.replace(/^\n- /, '- ');
 
 		const lines = text.split('\n').map(l => l.trim()).filter(l => l);
 

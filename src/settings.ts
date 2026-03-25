@@ -8,7 +8,6 @@ export interface EudicBridgeSettings {
 	folderPath: string;
 	saveTags: boolean;
 	eudicToken: string;
-	eudicDefaultListId: string;
 	syncCategoryIds: string[];
 	defaultUploadCategoryId: string;
 	enableSync: boolean;
@@ -25,7 +24,6 @@ export const DEFAULT_SETTINGS: EudicBridgeSettings = {
 	folderPath: 'EudicBridge',
 	saveTags: true,
 	eudicToken: '',
-	eudicDefaultListId: '',
 	syncCategoryIds: [],
 	defaultUploadCategoryId: '',
 	enableSync: false,

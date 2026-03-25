@@ -46,8 +46,8 @@ export default class EudicBridgePlugin extends Plugin {
 			void this.activateView();
 		});
 
-		this.autoLinkService = new AutoLinkService(this.app, this.settings);
-		this.batchUpdateService = new BatchUpdateService(this.app, this.settings);
+		this.autoLinkService = this.ensureAutoLinkService();
+		this.batchUpdateService = this.ensureBatchUpdateService();
 
 		this.initEudicServices();
 		this.updateRibbonIcons();
@@ -81,6 +81,20 @@ export default class EudicBridgePlugin extends Plugin {
 			() => this.loadData(),
 			(data) => this.saveData(data)
 		);
+	}
+
+	private ensureAutoLinkService(): AutoLinkService {
+		if (!this.autoLinkService) {
+			this.autoLinkService = new AutoLinkService(this.app, this.settings);
+		}
+		return this.autoLinkService;
+	}
+
+	private ensureBatchUpdateService(): BatchUpdateService {
+		if (!this.batchUpdateService) {
+			this.batchUpdateService = new BatchUpdateService(this.app, this.settings);
+		}
+		return this.batchUpdateService;
 	}
 
 	updateRibbonIcons(): void {
@@ -286,11 +300,7 @@ export default class EudicBridgePlugin extends Plugin {
 	}
 
 	private async updateWordFromProtocol(word: string): Promise<void> {
-		if (!this.batchUpdateService) {
-			this.batchUpdateService = new BatchUpdateService(this.app, this.settings);
-		}
-
-		const success = await this.batchUpdateService.updateSingleWord(word);
+		const success = await this.ensureBatchUpdateService().updateSingleWord(word);
 		if (success) {
 			new Notice(`已更新 "${word}" 的释义`);
 		} else {
@@ -425,20 +435,13 @@ export default class EudicBridgePlugin extends Plugin {
 	}
 
 	async performBatchUpdate(): Promise<void> {
-		if (!this.batchUpdateService) {
-			this.batchUpdateService = new BatchUpdateService(this.app, this.settings);
-		}
-
-		await this.batchUpdateService.batchUpdateWithModal();
+		await this.ensureBatchUpdateService().batchUpdateWithModal();
 	}
 
 	async autoLinkDocument(editor: Editor): Promise<void> {
-		if (!this.autoLinkService) {
-			this.autoLinkService = new AutoLinkService(this.app, this.settings);
-		}
-
-		this.autoLinkService.invalidateCache();
-		const count = await this.autoLinkService.autoLinkCurrentDocument(editor);
+		const service = this.ensureAutoLinkService();
+		service.invalidateCache();
+		const count = await service.autoLinkCurrentDocument(editor);
 		new Notice(`自动链接完成。添加了 ${count} 个链接。`);
 	}
 
@@ -462,7 +465,7 @@ export default class EudicBridgePlugin extends Plugin {
 			return false;
 		}
 
-		const listId = this.settings.eudicDefaultListId || '0';
+		const listId = this.settings.defaultUploadCategoryId || '0';
 
 		try {
 			await this.eudicService.addWords(listId, [word]);
@@ -525,11 +528,10 @@ export default class EudicBridgePlugin extends Plugin {
 		});
 	}
 
-	async createWordFile(word: string, entry: DictEntry, originalWord?: string): Promise<boolean> {
+	async createWordFile(word: string, entry: DictEntry, originalWord?: string): Promise<void> {
 		const folderPath = this.settings.folderPath;
 		const fileName = `${word}.md`;
 		const filePath = `${folderPath}/${fileName}`;
-		let isNewFile = false;
 
 		try {
 			const folderExists = await this.app.vault.adapter.exists(folderPath);
@@ -544,21 +546,18 @@ export default class EudicBridgePlugin extends Plugin {
 				const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
 				if (abstractFile instanceof TFile) {
 					await this.app.vault.modify(abstractFile, markdown);
-					new Notice(`Updated word file: ${fileName}`);
+					new Notice(`已更新单词文件: ${fileName}`);
 				}
 			} else {
 				await this.app.vault.create(filePath, markdown);
-				new Notice(`Created word file: ${fileName}`);
-				isNewFile = true;
+				new Notice(`已创建单词文件: ${fileName}`);
 			}
 
 			await this.app.workspace.openLinkText(filePath, '', true);
 		} catch (error) {
-			new Notice(`Failed to create word file: ${fileName}`);
+			new Notice(`创建单词文件失败: ${fileName}`);
 			console.error('Error creating word file:', error);
 		}
-
-		return isNewFile;
 	}
 
 	async activateView(): Promise<void> {
