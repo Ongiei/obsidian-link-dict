@@ -1,26 +1,26 @@
 import {ItemView, WorkspaceLeaf, setIcon, setTooltip} from 'obsidian';
-import LinkDictPlugin from './main';
+import EudicBridgePlugin from './main';
 import {DictEntry} from './types';
 import {renderPhoneticButtons} from './ui/phonetic-renderer';
 
 export class DictionaryView extends ItemView {
-	plugin: LinkDictPlugin;
+	plugin: EudicBridgePlugin;
 	searchInput: HTMLInputElement;
 	resultContainer: HTMLElement;
 	private currentWord: string = '';
 	private currentEntry: DictEntry | null = null;
 
-	constructor(leaf: WorkspaceLeaf, plugin: LinkDictPlugin) {
+	constructor(leaf: WorkspaceLeaf, plugin: EudicBridgePlugin) {
 		super(leaf);
 		this.plugin = plugin;
 	}
 
 	getViewType() {
-		return 'link-dict-view';
+		return 'eudic-bridge-view';
 	}
 
 	getDisplayText() {
-		return 'Link dictionary';
+		return 'Eudic Bridge';
 	}
 
 	getIcon() {
@@ -31,21 +31,21 @@ export class DictionaryView extends ItemView {
 		this.containerEl.empty();
 
 		const contentEl = this.containerEl.createEl('div', { cls: 'dict-view-content' });
-		contentEl.classList.add('link-dict-sidebar-view');
-		contentEl.classList.remove('link-dict-popover');
+		contentEl.classList.add('eudic-bridge-sidebar-view');
+		contentEl.classList.remove('eudic-bridge-popover');
 
-		const searchBarEl = contentEl.createEl('div', { cls: 'link-dict-search-box' });
+		const searchBarEl = contentEl.createEl('div', { cls: 'eudic-bridge-search-box' });
 
-		const inputWrapper = searchBarEl.createEl('div', { cls: 'link-dict-input-wrapper' });
+		const inputWrapper = searchBarEl.createEl('div', { cls: 'eudic-bridge-input-wrapper' });
 
 		this.searchInput = inputWrapper.createEl('input', {
 			type: 'text',
-			cls: 'link-dict-search-input',
+			cls: 'eudic-bridge-search-input',
 			attr: { placeholder: '输入单词...' }
 		});
 
 		const searchButton = inputWrapper.createEl('button', {
-			cls: 'link-dict-search-btn-inside'
+			cls: 'eudic-bridge-search-btn-inside'
 		});
 		setIcon(searchButton, 'search');
 		setTooltip(searchButton, '搜索');
@@ -54,7 +54,7 @@ export class DictionaryView extends ItemView {
 		});
 
 		const createNoteButton = searchBarEl.createEl('button', {
-			cls: 'link-dict-action-btn',
+			cls: 'eudic-bridge-action-btn',
 			attr: { 'aria-label': '创建词元笔记' }
 		});
 		setIcon(createNoteButton, 'file-plus');
@@ -84,7 +84,7 @@ export class DictionaryView extends ItemView {
 		if (!word) {
 			this.resultContainer.empty();
 			const message = this.resultContainer.createEl('p');
-			message.addClass('link-dict-message');
+			message.addClass('eudic-bridge-message');
 			message.setText('请输入要查询的单词。');
 			return;
 		}
@@ -95,7 +95,7 @@ export class DictionaryView extends ItemView {
 			if (!result) {
 				this.resultContainer.empty();
 				const message = this.resultContainer.createEl('p');
-				message.addClass('link-dict-message');
+				message.addClass('eudic-bridge-message');
 				const textSpan = message.createEl('span');
 				textSpan.setText('未找到定义： ');
 				const strongSpan = message.createEl('strong');
@@ -112,7 +112,7 @@ export class DictionaryView extends ItemView {
 		} catch (error) {
 			this.resultContainer.empty();
 			const message = this.resultContainer.createEl('p');
-			message.addClass('link-dict-message');
+			message.addClass('eudic-bridge-message');
 			const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 			message.setText(`Error: ${errorMsg}`);
 		}

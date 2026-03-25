@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, parseYaml } from 'obsidian';
-import { LinkDictSettings } from './settings';
+import { EudicBridgeSettings } from './settings';
 import { YoudaoService } from './youdao';
 import { DictEntry } from './types';
 import { MarkdownGenerator } from './utils/markdown-generator';
@@ -21,12 +21,12 @@ interface LocalFrontmatter {
 
 export class BatchUpdateService {
 	private app: App;
-	private settings: LinkDictSettings;
+	private settings: EudicBridgeSettings;
 	private isRunning: boolean = false;
 	private shouldStop: boolean = false;
 	private progressNotice: ProgressNoticeWidget | null = null;
 
-	constructor(app: App, settings: LinkDictSettings) {
+	constructor(app: App, settings: EudicBridgeSettings) {
 		this.app = app;
 		this.settings = settings;
 	}
@@ -72,7 +72,7 @@ export class BatchUpdateService {
 		const stats: BatchUpdateStats = { total: 0, updated: 0, pending: 0 };
 
 		if (!(folder instanceof TFolder)) {
-			console.debug(`[BatchUpdate] Folder not found: ${folderPath}`);
+			console.debug(`[EudicBridge] Folder not found: ${folderPath}`);
 			return stats;
 		}
 
@@ -90,7 +90,7 @@ export class BatchUpdateService {
 						stats.pending++;
 					}
 				} catch (readErr) {
-					console.warn(`[BatchUpdate] Could not read ${child.path}:`, readErr);
+					console.warn(`[EudicBridge] Could not read ${child.path}:`, readErr);
 				}
 			}
 		}
@@ -119,7 +119,7 @@ export class BatchUpdateService {
 			for (const file of filesNeedingUpdate) {
 				if (this.shouldStop || this.progressNotice?.isAbortedByUser()) {
 					this.progressNotice?.setAborted(result.updated);
-					console.debug(`[BatchUpdate] Aborted. Updated: ${result.updated}`);
+					console.debug(`[EudicBridge] Aborted. Updated: ${result.updated}`);
 					this.isRunning = false;
 					this.progressNotice = null;
 					onComplete(result);
@@ -135,13 +135,13 @@ export class BatchUpdateService {
 					const didUpdate = await this.updateFileSafely(file);
 					if (didUpdate) {
 						result.updated++;
-						console.debug(`[BatchUpdate] Updated "${word}" (${current}/${totalPending})`);
+						console.debug(`[EudicBridge] Updated "${word}" (${current}/${totalPending})`);
 					} else {
 						result.skipped++;
 					}
 				} catch (err) {
 					const errMsg = err instanceof Error ? err.message : String(err);
-					console.error(`[BatchUpdate] Failed "${word}":`, errMsg);
+					console.error(`[EudicBridge] Failed "${word}":`, errMsg);
 					result.failed++;
 				}
 
@@ -149,10 +149,10 @@ export class BatchUpdateService {
 			}
 
 			this.progressNotice?.setComplete(result.updated, result.failed);
-			console.debug(`[BatchUpdate] Complete. Updated: ${result.updated}, Failed: ${result.failed}`);
+			console.debug(`[EudicBridge] Complete. Updated: ${result.updated}, Failed: ${result.failed}`);
 		} catch (error) {
 			const errMsg = error instanceof Error ? error.message : String(error);
-			console.error('[BatchUpdate] Fatal error:', errMsg);
+			console.error('[EudicBridge] Fatal error:', errMsg);
 			this.progressNotice?.setComplete(result.updated, result.failed);
 		} finally {
 			this.isRunning = false;
@@ -201,7 +201,7 @@ export class BatchUpdateService {
 			return await YoudaoService.lookup(word);
 		}
 
-		console.warn(`[BatchUpdate] Dictionary source "${source}" not implemented, falling back to Youdao`);
+		console.warn(`[EudicBridge] Dictionary source "${source}" not implemented, falling back to Youdao`);
 		return await YoudaoService.lookup(word);
 	}
 
@@ -223,7 +223,7 @@ export class BatchUpdateService {
 		const folder = this.app.vault.getAbstractFileByPath(folderPath);
 
 		if (!(folder instanceof TFolder)) {
-			console.debug(`[BatchUpdate] Folder not found: ${folderPath}`);
+			console.debug(`[EudicBridge] Folder not found: ${folderPath}`);
 			return [];
 		}
 
@@ -243,7 +243,7 @@ export class BatchUpdateService {
 						files.push(child);
 					}
 				} catch (readErr) {
-					console.warn(`[BatchUpdate] Could not read ${child.path}:`, readErr);
+					console.warn(`[EudicBridge] Could not read ${child.path}:`, readErr);
 				}
 			}
 		}
@@ -287,14 +287,14 @@ export class BatchUpdateService {
 			}
 
 			if (!file) {
-				console.debug(`[BatchUpdate] File not found for word: ${word}`);
+				console.debug(`[EudicBridge] File not found for word: ${word}`);
 				return false;
 			}
 
 			return await this.updateFileSafely(file);
 		} catch (error) {
 			const errMsg = error instanceof Error ? error.message : String(error);
-			console.error(`[BatchUpdate] Failed to update ${word}:`, errMsg);
+			console.error(`[EudicBridge] Failed to update ${word}:`, errMsg);
 			return false;
 		}
 	}

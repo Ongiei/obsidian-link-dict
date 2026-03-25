@@ -3,31 +3,31 @@
 	font-size: 0.9em;
 }
 
-.link-dict-sidebar-view {
+.eudic-bridge-sidebar-view {
 	padding: 16px 20px;
 	max-height: calc(100vh - 40px);
 	overflow-y: auto;
 	overflow-x: hidden;
 }
 
-.link-dict-sidebar-view::-webkit-scrollbar {
+.eudic-bridge-sidebar-view::-webkit-scrollbar {
 	width: 8px;
 }
 
-.link-dict-sidebar-view::-webkit-scrollbar-track {
+.eudic-bridge-sidebar-view::-webkit-scrollbar-track {
 	background: transparent;
 }
 
-.link-dict-sidebar-view::-webkit-scrollbar-thumb {
+.eudic-bridge-sidebar-view::-webkit-scrollbar-thumb {
 	background-color: var(--background-modifier-border-hover);
 	border-radius: 4px;
 }
 
-.link-dict-sidebar-view::-webkit-scrollbar-thumb:hover {
+.eudic-bridge-sidebar-view::-webkit-scrollbar-thumb:hover {
 	background-color: var(--interactive-accent-hover);
 }
 
-.link-dict-sidebar-view .link-dict-search-box {
+.eudic-bridge-sidebar-view .eudic-bridge-search-box {
 	width: 100%;
 	padding: 0;
 	margin-bottom: 12px;
@@ -36,7 +36,7 @@
 	gap: 6px;
 }
 
-.link-dict-input-wrapper {
+.eudic-bridge-input-wrapper {
 	position: relative;
 	display: flex;
 	align-items: center;
@@ -44,12 +44,12 @@
 	min-width: 0;
 }
 
-.link-dict-input-wrapper .link-dict-search-input {
+.eudic-bridge-input-wrapper .eudic-bridge-search-input {
 	width: 100%;
 	padding-right: 36px;
 }
 
-.link-dict-search-btn-inside {
+.eudic-bridge-search-btn-inside {
 	position: absolute;
 	right: 4px;
 	top: 50%;
@@ -69,12 +69,12 @@
 	opacity: 0.5;
 }
 
-.link-dict-search-btn-inside:hover {
+.eudic-bridge-search-btn-inside:hover {
 	opacity: 1;
 	color: var(--text-normal);
 }
 
-.link-dict-action-btn {
+.eudic-bridge-action-btn {
 	flex-shrink: 0;
 	width: 32px;
 	height: 32px;
@@ -91,13 +91,13 @@
 	opacity: 0.7;
 }
 
-.link-dict-action-btn:hover {
+.eudic-bridge-action-btn:hover {
 	opacity: 1;
 	color: var(--interactive-accent);
 	background: var(--background-modifier-hover);
 }
 
-.link-dict-search-box {
+.eudic-bridge-search-box {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -105,7 +105,7 @@
 	padding: 0 4px;
 }
 
-.link-dict-search-input {
+.eudic-bridge-search-input {
 	flex-grow: 1;
 	min-width: 0;
 	padding: 6px 10px;
@@ -115,12 +115,12 @@
 	color: var(--text-normal);
 }
 
-.link-dict-search-input:focus {
+.eudic-bridge-search-input:focus {
 	outline: none;
 	border-color: var(--interactive-accent);
 }
 
-.link-dict-search-btn {
+.eudic-bridge-search-btn {
 	flex-shrink: 0;
 	width: 32px;
 	padding: 0;
@@ -148,14 +148,14 @@
 	gap: 8px;
 }
 
-.link-dict-sidebar-view .dict-header-container {
+.eudic-bridge-sidebar-view .dict-header-container {
 	width: 100%;
 	margin-bottom: 2px !important;
 	padding-bottom: 0 !important;
 	padding-right: 2px;
 }
 
-.link-dict-sidebar-view .dict-header-left {
+.eudic-bridge-sidebar-view .dict-header-left {
 	flex-grow: 1;
 }
 
@@ -208,7 +208,7 @@
 	gap: 8px;
 }
 
-.link-dict-sidebar-view .dict-definitions-list {
+.eudic-bridge-sidebar-view .dict-definitions-list {
 	margin-top: 0 !important;
 }
 
@@ -291,15 +291,15 @@
 	font-weight: bold;
 }
 
-.link-dict-message {
+.eudic-bridge-message {
 	color: var(--text-muted);
 }
 
-.link-dict-error {
+.eudic-bridge-error {
 	color: var(--text-error);
 }
 
-.link-dict-popover {
+.eudic-bridge-popover {
 	position: absolute;
 	z-index: var(--layer-popover, 9999);
 	background-color: var(--background-primary);
@@ -319,7 +319,7 @@
 	opacity: 0;
 }
 
-.link-dict-popover.active {
+.eudic-bridge-popover.active {
 	opacity: 1;
 	transform: scale(1);
 }
@@ -506,11 +506,11 @@
 }
 
 /* Settings Panel Styles */
-.linkdict-settings {
+.eudicbridge-settings {
 	padding: 20px;
 }
 
-.linkdict-warning-text {
+.eudicbridge-warning-text {
 	color: var(--text-warning);
 	font-size: 0.85em;
 	margin: -8px 0 12px 0;
@@ -520,25 +520,25 @@
 }
 
 /* Modal Container Styles */
-.linkdict-modal-container {
+.eudicbridge-modal-container {
 	padding: 24px;
 	min-width: 360px;
 }
 
-.linkdict-modal-container h2 {
+.eudicbridge-modal-container h2 {
 	margin-bottom: 16px;
 	color: var(--text-normal);
 }
 
 /* Stats Grid - Card Style */
-.linkdict-stats-grid {
+.eudicbridge-stats-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 	gap: 12px;
 	margin-bottom: 20px;
 }
 
-.linkdict-stat-card {
+.eudicbridge-stat-card {
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
@@ -547,12 +547,12 @@
 	transition: all 0.2s ease;
 }
 
-.linkdict-stat-card:hover {
+.eudicbridge-stat-card:hover {
 	border-color: var(--interactive-accent);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.linkdict-stat-value {
+.eudicbridge-stat-value {
 	font-size: 2em;
 	font-weight: 700;
 	color: var(--text-normal);
@@ -560,44 +560,44 @@
 	margin-bottom: 4px;
 }
 
-.linkdict-stat-label {
+.eudicbridge-stat-label {
 	font-size: 0.85em;
 	color: var(--text-muted);
 }
 
-.linkdict-stat-success {
+.eudicbridge-stat-success {
 	border-left: 3px solid var(--text-success);
 }
 
-.linkdict-stat-success .linkdict-stat-value {
+.eudicbridge-stat-success .eudicbridge-stat-value {
 	color: var(--text-success);
 }
 
-.linkdict-stat-warning {
+.eudicbridge-stat-warning {
 	border-left: 3px solid var(--text-warning);
 }
 
-.linkdict-stat-warning .linkdict-stat-value {
+.eudicbridge-stat-warning .eudicbridge-stat-value {
 	color: var(--text-warning);
 }
 
-.linkdict-stat-download {
+.eudicbridge-stat-download {
 	border-left: 3px solid var(--text-success);
 }
 
-.linkdict-stat-upload {
+.eudicbridge-stat-upload {
 	border-left: 3px solid var(--interactive-accent);
 }
 
-.linkdict-stat-delete-local {
+.eudicbridge-stat-delete-local {
 	border-left: 3px solid var(--text-warning);
 }
 
-.linkdict-stat-delete-cloud {
+.eudicbridge-stat-delete-cloud {
 	border-left: 3px solid var(--text-error);
 }
 
-.linkdict-no-pending {
+.eudicbridge-no-pending {
 	color: var(--text-muted);
 	text-align: center;
 	padding: 20px;
@@ -605,40 +605,40 @@
 }
 
 /* Error List */
-.linkdict-error-list {
+.eudicbridge-error-list {
 	margin-top: 12px;
 	padding: 8px;
 	background-color: var(--background-modifier-error);
 	border-radius: 4px;
 }
 
-.linkdict-error-item {
+.eudicbridge-error-item {
 	color: var(--text-error);
 	font-size: 0.9em;
 	margin-top: 4px;
 }
 
 /* Progress Notice Widget */
-.linkdict-progress-notice {
+.eudicbridge-progress-notice {
 	min-width: 280px;
 	padding: 12px 16px;
 }
 
-.linkdict-notice-title {
+.eudicbridge-notice-title {
 	font-weight: 600;
 	color: var(--text-normal);
 	margin-bottom: 8px;
 	font-size: 0.95em;
 }
 
-.linkdict-notice-word {
+.eudicbridge-notice-word {
 	color: var(--text-muted);
 	font-size: 0.85em;
 	margin-bottom: 8px;
 	font-family: var(--font-monospace);
 }
 
-.linkdict-notice-progress {
+.eudicbridge-notice-progress {
 	width: 100%;
 	height: 6px;
 	border-radius: 3px;
@@ -646,18 +646,18 @@
 	background: var(--background-modifier-border);
 }
 
-.linkdict-notice-progress::-webkit-progress-bar {
+.eudicbridge-notice-progress::-webkit-progress-bar {
 	background: var(--background-modifier-border);
 	border-radius: 3px;
 }
 
-.linkdict-notice-progress::-webkit-progress-value {
+.eudicbridge-notice-progress::-webkit-progress-value {
 	background: var(--interactive-accent);
 	border-radius: 3px;
 	transition: width 0.2s ease;
 }
 
-.linkdict-notice-abort {
+.eudicbridge-notice-abort {
 	padding: 4px 12px;
 	font-size: 0.8em;
 	border-radius: 4px;
@@ -668,26 +668,26 @@
 	transition: all 0.2s ease;
 }
 
-.linkdict-notice-abort:hover {
+.eudicbridge-notice-abort:hover {
 	opacity: 0.9;
 }
 
-.linkdict-notice-abort:disabled {
+.eudicbridge-notice-abort:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
 
-.linkdict-notice-complete {
+.eudicbridge-notice-complete {
 	padding: 12px 16px;
 }
 
-.linkdict-notice-result {
+.eudicbridge-notice-result {
 	color: var(--text-normal);
 	font-size: 0.9em;
 }
 
 /* Legacy Sync Modal Styles (kept for compatibility) */
-.link-dict-sync-modal {
+.eudic-bridge-sync-modal {
 	padding: 20px;
 }
 
@@ -735,54 +735,54 @@
 }
 
 /* Confirm Modal Styles */
-.linkdict-confirm-modal {
+.eudicbridge-confirm-modal {
 	padding: 24px;
 	min-width: 300px;
 }
 
-.linkdict-confirm-modal p {
+.eudicbridge-confirm-modal p {
 	margin-bottom: 20px;
 	color: var(--text-normal);
 	line-height: 1.5;
 }
 
-.linkdict-confirm-buttons {
+.eudicbridge-confirm-buttons {
 	display: flex;
 	justify-content: flex-end;
 	gap: 12px;
 }
 
-.linkdict-confirm-buttons button {
+.eudicbridge-confirm-buttons button {
 	padding: 6px 16px;
 	border-radius: 4px;
 	cursor: pointer;
 }
 
-.linkdict-confirm-buttons .mod-danger {
+.eudicbridge-confirm-buttons .mod-danger {
 	background: var(--background-modifier-error);
 	color: var(--text-on-accent);
 	border: none;
 	font-weight: 600;
 }
 
-.linkdict-confirm-buttons .mod-danger:hover {
+.eudicbridge-confirm-buttons .mod-danger:hover {
 	opacity: 0.9;
 }
 
 /* Fix Notice text color for light theme */
-.linkdict-progress-notice,
-.linkdict-progress-notice * {
+.eudicbridge-progress-notice,
+.eudicbridge-progress-notice * {
 	color: var(--text-on-accent) !important;
 }
 
-.linkdict-notice-title,
-.linkdict-notice-word,
-.linkdict-notice-result {
+.eudicbridge-notice-title,
+.eudicbridge-notice-word,
+.eudicbridge-notice-result {
 	color: var(--text-on-accent) !important;
 }
 
 /* Category checkboxes for multi-select */
-.linkdict-category-checkboxes {
+.eudicbridge-category-checkboxes {
 	margin: -8px 0 16px 0;
 	padding: 12px;
 	background: var(--background-secondary);
@@ -792,7 +792,7 @@
 	gap: 8px;
 }
 
-.linkdict-checkbox-label {
+.eudicbridge-checkbox-label {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -805,16 +805,16 @@
 	transition: all 0.15s ease;
 }
 
-.linkdict-checkbox-label:hover {
+.eudicbridge-checkbox-label:hover {
 	border-color: var(--interactive-accent);
 	background: var(--background-modifier-hover);
 }
 
-.linkdict-checkbox-label input[type="checkbox"] {
+.eudicbridge-checkbox-label input[type="checkbox"] {
 	margin: 0;
 	cursor: pointer;
 }
 
-.linkdict-checkbox-label span {
+.eudicbridge-checkbox-label span {
 	color: var(--text-normal);
 }

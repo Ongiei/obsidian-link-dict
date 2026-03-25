@@ -1,11 +1,11 @@
 {
-	"id": "link-dict",
-	"name": "LinkDict",
+	"id": "obsidian-eudic-bridge",
+	"name": "Eudic Bridge",
 	"version": "3.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "A lemma-first dictionary plugin for Obsidian with Eudic sync and smart wikilinks. Look up words and generate markdown notes with automatic lemma redirection.",
+	"description": "连接 Obsidian 与欧路词典，支持生词本同步、词元识别、自动双链。",
 	"author": "Ongiei",
-	"authorUrl": "https://github.com/Ongiei/obsidian-link-dict",
+	"authorUrl": "https://github.com/Ongiei/obsidian-eudic-bridge",
 	"isDesktopOnly": false,
 	"styles": "styles.css"
 }

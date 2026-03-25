@@ -1,10 +1,10 @@
 import {AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, TAbstractFile, TFolder, Modal} from "obsidian";
-import LinkDictPlugin from "./main";
+import EudicBridgePlugin from "./main";
 import {EudicService, EudicCategory} from "./eudic";
 
 export type DictionarySource = 'eudic' | 'youdao';
 
-export interface LinkDictSettings {
+export interface EudicBridgeSettings {
 	folderPath: string;
 	saveTags: boolean;
 	eudicToken: string;
@@ -21,8 +21,8 @@ export interface LinkDictSettings {
 	apiDelayMs: number;
 }
 
-export const DEFAULT_SETTINGS: LinkDictSettings = {
-	folderPath: 'LinkDict',
+export const DEFAULT_SETTINGS: EudicBridgeSettings = {
+	folderPath: 'EudicBridge',
 	saveTags: true,
 	eudicToken: '',
 	eudicDefaultListId: '',
@@ -51,11 +51,11 @@ class ConfirmModal extends Modal {
 
 	onOpen() {
 		const {contentEl} = this;
-		contentEl.addClass('linkdict-confirm-modal');
+		contentEl.addClass('eudicbridge-confirm-modal');
 
 		contentEl.createEl('p', {text: this.message});
 
-		const btnContainer = contentEl.createEl('div', {cls: 'linkdict-confirm-buttons'});
+		const btnContainer = contentEl.createEl('div', {cls: 'eudicbridge-confirm-buttons'});
 
 		const confirmBtn = btnContainer.createEl('button', {cls: 'mod-warning'});
 		confirmBtn.textContent = '执行';
@@ -81,12 +81,12 @@ class ConfirmModal extends Modal {
 	}
 }
 
-export class LinkDictSettingTab extends PluginSettingTab {
-	plugin: LinkDictPlugin;
+export class EudicBridgeSettingTab extends PluginSettingTab {
+	plugin: EudicBridgePlugin;
 	private categories: EudicCategory[] = [];
 	private categoriesLoaded = false;
 
-	constructor(app: App, plugin: LinkDictPlugin) {
+	constructor(app: App, plugin: EudicBridgePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -94,7 +94,7 @@ export class LinkDictSettingTab extends PluginSettingTab {
 	display(): void {
 		const {containerEl} = this;
 		containerEl.empty();
-		containerEl.addClass('linkdict-settings');
+		containerEl.addClass('eudicbridge-settings');
 
 		this.renderDictionarySection(containerEl);
 		this.renderSyncSection(containerEl);
@@ -114,7 +114,7 @@ export class LinkDictSettingTab extends PluginSettingTab {
 			this.categoriesLoaded = true;
 			this.display();
 		} catch (error) {
-			console.error('[LinkDict] Failed to load categories:', error);
+			console.error('[EudicBridge] Failed to load categories:', error);
 		}
 	}
 
@@ -136,7 +136,7 @@ export class LinkDictSettingTab extends PluginSettingTab {
 						if (sanitized !== value) {
 							new Notice('路径包含非法字符，已自动清理');
 						}
-						this.plugin.settings.folderPath = sanitized || 'LinkDict';
+						this.plugin.settings.folderPath = sanitized || 'EudicBridge';
 						await this.plugin.saveSettings();
 					});
 			});
@@ -208,7 +208,7 @@ export class LinkDictSettingTab extends PluginSettingTab {
 
 		if (this.plugin.settings.eudicToken) {
 			const warningEl = containerEl.createEl('p', { 
-				cls: 'linkdict-warning-text',
+				cls: 'eudicbridge-warning-text',
 			});
 			warningEl.setText('Token 以明文存储在插件数据中。请勿将 data.json 分享或上传到公开仓库。');
 
@@ -222,12 +222,12 @@ export class LinkDictSettingTab extends PluginSettingTab {
 					.setName('同步生词本范围')
 					.setDesc('选择需要同步的生词本（可多选）');
 
-				const categoryContainer = containerEl.createEl('div', {cls: 'linkdict-category-checkboxes'});
+				const categoryContainer = containerEl.createEl('div', {cls: 'eudicbridge-category-checkboxes'});
 
 				for (const cat of this.categories) {
 					const isChecked = this.plugin.settings.syncCategoryIds.includes(cat.id);
 					
-					const label = categoryContainer.createEl('label', {cls: 'linkdict-checkbox-label'});
+					const label = categoryContainer.createEl('label', {cls: 'eudicbridge-checkbox-label'});
 					const checkbox = label.createEl('input', {type: 'checkbox'});
 					checkbox.checked = isChecked;
 					checkbox.addEventListener('change', () => {

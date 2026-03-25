@@ -1,5 +1,5 @@
 import {Editor, MarkdownView, Menu, Notice, Plugin, TFile, WorkspaceLeaf} from 'obsidian';
-import {DEFAULT_SETTINGS, LinkDictSettings, LinkDictSettingTab} from "./settings";
+import {DEFAULT_SETTINGS, EudicBridgeSettings, EudicBridgeSettingTab} from "./settings";
 import {DictionaryView} from "./view";
 import {DefinitionPopover} from "./popover";
 import {YoudaoService} from "./youdao";
@@ -12,7 +12,7 @@ import {BatchUpdateService} from "./batch-update";
 import {ProgressNoticeWidget} from "./modal";
 import {MarkdownGenerator} from "./utils/markdown-generator";
 
-export const VIEW_TYPE_LINK_DICT = 'link-dict-view';
+export const VIEW_TYPE_EUDIC_BRIDGE = 'eudic-bridge-view';
 
 const WORD_REGEX = /^[a-zA-Z\s'-]+$/;
 
@@ -24,8 +24,8 @@ function isValidWord(word: string): boolean {
 	return word.length > 0 && word.length <= 50 && WORD_REGEX.test(word);
 }
 
-export default class LinkDictPlugin extends Plugin {
-	settings: LinkDictSettings;
+export default class EudicBridgePlugin extends Plugin {
+	settings: EudicBridgeSettings;
 	private eudicService: EudicService | null = null;
 	private syncService: SyncService | null = null;
 	private autoLinkService: AutoLinkService | null = null;
@@ -40,7 +40,7 @@ export default class LinkDictPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		this.registerView(VIEW_TYPE_LINK_DICT, (leaf) => new DictionaryView(leaf, this));
+		this.registerView(VIEW_TYPE_EUDIC_BRIDGE, (leaf) => new DictionaryView(leaf, this));
 
 		this.addRibbonIcon('book-open', '打开词典视图', () => {
 			void this.activateView();
@@ -56,13 +56,13 @@ export default class LinkDictPlugin extends Plugin {
 		this.registerMenus();
 		this.registerEventHandlers();
 		this.registerProtocolHandler();
-		this.addSettingTab(new LinkDictSettingTab(this.app, this));
+		this.addSettingTab(new EudicBridgeSettingTab(this.app, this));
 
 		this.initSyncServices();
 	}
 
 	onunload() {
-		const activePopover = document.querySelector('.link-dict-popover');
+		const activePopover = document.querySelector('.eudic-bridge-popover');
 		if (activePopover) {
 			activePopover.remove();
 		}
@@ -269,13 +269,13 @@ export default class LinkDictPlugin extends Plugin {
 	}
 
 	private registerProtocolHandler(): void {
-		this.registerObsidianProtocolHandler('linkdict', async (params) => {
+		this.registerObsidianProtocolHandler('eudic-bridge', async (params) => {
 			const cmd = params.cmd;
 			const rawWord = params.word || '';
 			
 			const word = sanitizeWord(rawWord);
 			if (!isValidWord(word)) {
-				console.warn('[LinkDict] Invalid word in protocol handler:', rawWord);
+				console.warn('[EudicBridge] Invalid word in protocol handler:', rawWord);
 				return;
 			}
 
@@ -383,7 +383,7 @@ export default class LinkDictPlugin extends Plugin {
 			if (!isAutoSync) {
 				new Notice(`同步失败：${errorMsg}`);
 			}
-			console.error('[LinkDict] Sync failed:', errorMsg);
+			console.error('[EudicBridge] Sync failed:', errorMsg);
 		}
 	}
 
@@ -449,7 +449,7 @@ export default class LinkDictPlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const loaded: unknown = await this.loadData();
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded as Partial<LinkDictSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded as Partial<EudicBridgeSettings>);
 	}
 
 	async saveSettings(): Promise<void> {
@@ -563,13 +563,13 @@ export default class LinkDictPlugin extends Plugin {
 
 	async activateView(): Promise<void> {
 		const { workspace } = this.app;
-		const leaves = workspace.getLeavesOfType(VIEW_TYPE_LINK_DICT);
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_EUDIC_BRIDGE);
 
 		let leaf: WorkspaceLeaf | null = leaves[0] ?? null;
 		if (!leaf) {
 			leaf = workspace.getRightLeaf(false);
 			if (leaf) {
-				await leaf.setViewState({ type: VIEW_TYPE_LINK_DICT, active: true });
+				await leaf.setViewState({ type: VIEW_TYPE_EUDIC_BRIDGE, active: true });
 			}
 		}
 

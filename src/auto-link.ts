@@ -1,5 +1,5 @@
 import { App, Editor, TFile, TFolder } from 'obsidian';
-import { LinkDictSettings } from './settings';
+import { EudicBridgeSettings } from './settings';
 import { getLemma } from './lemmatizer';
 
 const WORD_PATTERN = /\b[a-zA-Z]+(?:[-'][a-zA-Z]+)*\b/g;
@@ -13,10 +13,10 @@ interface WikiLinkMatch {
 
 export class AutoLinkService {
 	private app: App;
-	private settings: LinkDictSettings;
+	private settings: EudicBridgeSettings;
 	private localWordCache: Set<string> | null = null;
 
-	constructor(app: App, settings: LinkDictSettings) {
+	constructor(app: App, settings: EudicBridgeSettings) {
 		this.app = app;
 		this.settings = settings;
 	}
@@ -89,7 +89,7 @@ export class AutoLinkService {
 			editor.setValue(newText);
 			return linkedWords.size;
 		} catch (error) {
-			console.error('[LinkDict] Auto-link failed:', error);
+			console.error('[EudicBridge] Auto-link failed:', error);
 			return 0;
 		}
 	}

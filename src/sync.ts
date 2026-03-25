@@ -1,6 +1,6 @@
 import { App, TFile, TFolder, stringifyYaml } from 'obsidian';
 import { EudicService, EudicWord } from './eudic';
-import { LinkDictSettings } from './settings';
+import { EudicBridgeSettings } from './settings';
 
 const MANIFEST_KEY = 'syncManifest';
 const API_TIMEOUT_MS = 30000;
@@ -74,7 +74,7 @@ export function getValidFilename(word: string): string {
 
 export class SyncService {
 	private app: App;
-	private settings: LinkDictSettings;
+	private settings: EudicBridgeSettings;
 	private eudicService: EudicService;
 	private loadData: () => Promise<unknown>;
 	private saveData: (data: unknown) => Promise<void>;
@@ -85,7 +85,7 @@ export class SyncService {
 
 	constructor(
 		app: App,
-		settings: LinkDictSettings,
+		settings: EudicBridgeSettings,
 		eudicService: EudicService,
 		loadData: () => Promise<unknown>,
 		saveData: (data: unknown) => Promise<void>
@@ -108,7 +108,7 @@ export class SyncService {
 				return (data as Record<string, unknown>)[MANIFEST_KEY] as SyncManifest;
 			}
 		} catch (error) {
-			console.debug('[LinkDict] Load manifest failed:', error);
+			console.debug('[EudicBridge] Load manifest failed:', error);
 		}
 		return null;
 	}
@@ -124,7 +124,7 @@ export class SyncService {
 			data[MANIFEST_KEY] = manifest;
 			await this.saveData(data);
 		} catch (error) {
-			console.error('[LinkDict] Save manifest failed:', error);
+			console.error('[EudicBridge] Save manifest failed:', error);
 		}
 	}
 
@@ -187,7 +187,7 @@ export class SyncService {
 		}
 
 		this.cloudWordsWithCategories = data;
-		console.debug(`[LinkDict] Fetched ${data.size} unique words from ${categoryIds.length} categories`);
+		console.debug(`[EudicBridge] Fetched ${data.size} unique words from ${categoryIds.length} categories`);
 		return data;
 	}
 
@@ -206,7 +206,7 @@ export class SyncService {
 				const fm = cache?.frontmatter;
 
 				const tags = fm?.tags as string[] | undefined;
-				if (Array.isArray(tags) && tags.includes('linkdict/cloud-deleted')) {
+				if (Array.isArray(tags) && tags.includes('eudicbridge/cloud-deleted')) {
 					continue;
 				}
 
@@ -218,7 +218,7 @@ export class SyncService {
 			}
 		}
 
-		console.debug(`[LinkDict] Found ${words.size} local words`);
+		console.debug(`[EudicBridge] Found ${words.size} local words`);
 		return words;
 	}
 
@@ -340,7 +340,7 @@ export class SyncService {
 					}
 				} catch (error) {
 					const msg = error instanceof Error ? error.message : String(error);
-					console.error(`[LinkDict] ${op.type} "${op.word}" failed:`, msg);
+					console.error(`[EudicBridge] ${op.type} "${op.word}" failed:`, msg);
 					errors.push(`${op.type} "${op.word}": ${msg}`);
 					stats.failed++;
 				}
@@ -446,7 +446,7 @@ export class SyncService {
 		if (file instanceof TFile) {
 			await this.app.fileManager.trashFile(file);
 		} else {
-			console.warn(`[LinkDict] File not found for trashing: ${word}`);
+			console.warn(`[EudicBridge] File not found for trashing: ${word}`);
 		}
 	}
 
@@ -464,7 +464,7 @@ export class SyncService {
 		md += this.formatExp(exp);
 		md += `\n`;
 		md += `> [!info] 欧路同步\n`;
-		md += `> [🔄 点击从在线词典更新释义](obsidian://linkdict?cmd=update&word=${encodeURIComponent(originalWord)})\n`;
+		md += `> [🔄 点击从在线词典更新释义](obsidian://eudic-bridge?cmd=update&word=${encodeURIComponent(originalWord)})\n`;
 
 		return md;
 	}

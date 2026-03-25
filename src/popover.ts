@@ -1,5 +1,5 @@
 import {Editor, setIcon, setTooltip} from 'obsidian';
-import LinkDictPlugin from './main';
+import EudicBridgePlugin from './main';
 import {DictEntry, EditorWithCM} from './types';
 import {renderPhoneticButtons} from './ui/phonetic-renderer';
 
@@ -9,7 +9,7 @@ export class DefinitionPopover {
 	private abortController: AbortController | null = null;
 
 	constructor(
-		private plugin: LinkDictPlugin,
+		private plugin: EudicBridgePlugin,
 		private editor: Editor,
 		private originalWord: string,
 		entry?: DictEntry
@@ -31,7 +31,7 @@ export class DefinitionPopover {
 		}
 
 		this.overlay = document.createElement('div');
-		this.overlay.className = 'link-dict-popover';
+		this.overlay.className = 'eudic-bridge-popover';
 		document.body.appendChild(this.overlay);
 
 		const offset = 15;
@@ -95,7 +95,7 @@ export class DefinitionPopover {
 	}
 
 	private removeExistingPopover() {
-		const existing = document.querySelector('.link-dict-popover');
+		const existing = document.querySelector('.eudic-bridge-popover');
 		if (existing) {
 			existing.remove();
 		}

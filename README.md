@@ -1,109 +1,56 @@
-# LinkDict
+# Eudic Bridge (欧路桥)
 
-[![GitHub release](https://img.shields.io/github/v/release/Ongiei/obsidian-link-dict)](https://github.com/Ongiei/obsidian-link-dict/releases)
-[![License](https://img.shields.io/github/license/Ongiei/obsidian-link-dict)](LICENSE)
+一座连接 Obsidian 与欧路词典 (Eudic) 的桥梁，专为语言学习者和重度阅读者打造。
 
-基于有道词典 API 的 Obsidian 词汇学习插件，支持词形还原、欧路词典同步。
+## 核心功能
 
-## 功能
+### 欧路词典全量同步
 
-- **欧路生词本同步** - 本地与云端双向同步，支持多生词本
-- **Lemma 双链** - `running` → `[[run|running]]`，自动还原词形
-- **在线查词** - 有道词典 API，含音标、释义、例句
-- **批量更新** - 更新欧路同步的简略释义
+将你的欧路生词本无缝同步至 Obsidian，自动将生词转化为排版精美的本地 Markdown 卡片。
+
+### 本地词库与 Lemma 词元识别
+
+智能识别单词变形。无论复数、过去式还是分词，都能精准匹配并指向同一个词根笔记，彻底解决英语阅读中的双链跳转痛点。
+
+### 一键双链当前文档
+
+自动扫描当前阅读的文章，自动与你同步下来的欧路词库进行比对，并为匹配的生词一键生成双向链接。
 
 ## 安装
 
 ### BRAT（推荐）
 
-1. 安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat)
-2. 添加仓库：`Ongiei/obsidian-link-dict`
+1. 安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 插件
+2. 添加仓库：`Ongiei/obsidian-eudic-bridge`
 3. 启用插件
 
-### 手动
+### 手动安装
 
-1. 从 [Releases](https://github.com/Ongiei/obsidian-link-dict/releases/latest) 下载 `main.js`、`manifest.json`、`styles.css`
-2. 放入 `.obsidian/plugins/link-dict/`
+1. 从 [Releases](https://github.com/Ongiei/obsidian-eudic-bridge/releases/latest) 下载 `main.js`、`manifest.json`、`styles.css`
+2. 放入 `.obsidian/plugins/obsidian-eudic-bridge/`
 3. 重启 Obsidian 并启用插件
 
 ## 使用
 
-### 查词
-
-选中单词 → 右键菜单 **Look up selection**
-
-### 创建笔记
-
-选中单词 → 右键菜单 **Create lemma note**
-
-### 欧路同步
-
-1. 获取 API Token（欧路账户 → 个人设置 → API）
-2. 插件设置中配置 Token
-3. 选择生词本，启用同步
-
-### 自动双链
-
-命令面板 → **Auto-link words in current document**
+1. **获取 Token**：在欧路词典官网获取你的 API Token 并填入插件设置
+2. **设置路径**：指定一个用于保存单词卡片的本地文件夹
+3. **一键同步**：点击侧边栏的同步按钮，瞬间完成知识库构建
 
 ## 命令
 
 | 命令 | 功能 |
 |------|------|
-| Open dictionary view | 打开词典侧边栏 |
-| Create lemma note | 创建词元笔记 |
-| Look up selection | 查询选中词 |
-| Auto-link words in current document | 自动双链 |
-| Sync with eudic now | 欧路同步 |
-| Batch update missing definitions | 批量更新释义 |
-
-## 笔记示例
-
-```markdown
----
-tags: [vocabulary, exam/CET4, pos/v]
-aliases: [running, ran, runs]
-dict_source: youdao
----
-
-# run
-
-## Pronunciation
-
-- UK: `/rʌn/`
-- US: `/rʌn/`
-
-## Definitions
-
-- ***vi.*** 跑，奔跑；运转
-- ***vt.*** 管理，经营；运行
-- ***n.*** 跑步；运行
-
-## Examples
-
-- He runs every morning.
-  - 他每天早上跑步。
-
-## Word forms
-
-- 过去式: ran
-- 过去分词: run
-- 现在分词: running
-```
-
-## 开发
-
-```bash
-npm install
-npm run dev      # 开发
-npm run build    # 构建
-npm run lint     # 检查
-```
+| 打开词典视图 | 打开词典侧边栏 |
+| 创建词元笔记 | 创建词根笔记 |
+| 查询选中内容 | 查询选中词 |
+| 自动链接当前文档 | 自动双链 |
+| 预检欧路同步 | 欧路同步 |
+| 批量更新缺失释义 | 批量更新释义 |
 
 ## 致谢
 
-- [有道词典](https://dict.youdao.com/)
 - [欧路词典](https://my.eudic.net/)
+- [有道词典](https://dict.youdao.com/)
 - [wink-lemmatizer](https://github.com/winkjs/wink-lemmatizer)
 
 ## License
