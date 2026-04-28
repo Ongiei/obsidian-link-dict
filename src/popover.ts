@@ -22,7 +22,8 @@ export class DefinitionPopover {
 		this.removeExistingPopover();
 
 		const cursorFrom = this.editor.getCursor('from');
-		const cm = (this.editor as unknown as EditorWithCM).cm;
+		// @ts-expect-error - cm is a private CodeMirror API, defensively guarded with optional chaining
+		const cm = (this.editor as { cm?: EditorWithCM['cm'] }).cm;
 		const pos = this.editor.posToOffset(cursorFrom);
 		const coords = cm?.coordsAtPos(pos);
 

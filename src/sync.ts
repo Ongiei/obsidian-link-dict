@@ -119,6 +119,10 @@ export class SyncService {
 			syncedWords: words.map(w => w.toLowerCase()),
 		};
 		
+		await this.writeManifest(manifest);
+	}
+
+	private async writeManifest(manifest: SyncManifest): Promise<void> {
 		try {
 			const data = (await this.loadData()) as Record<string, unknown> || {};
 			data[MANIFEST_KEY] = manifest;
@@ -511,7 +515,7 @@ export class SyncService {
 		const manifest = await this.loadManifest();
 		if (manifest) {
 			manifest.syncedWords = manifest.syncedWords.filter(w => w.toLowerCase() !== wordLower);
-			await this.saveManifest(manifest.syncedWords);
+			await this.writeManifest(manifest);
 		}
 	}
 }

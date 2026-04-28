@@ -2,6 +2,7 @@ import { App, TFile, TFolder, parseYaml } from 'obsidian';
 import { EudicBridgeSettings } from './settings';
 import { YoudaoService } from './youdao';
 import { DictEntry } from './types';
+import { getLemma } from './lemmatizer';
 import { MarkdownGenerator } from './utils/markdown-generator';
 import { BatchUpdateModal, BatchUpdateStats, ProgressNoticeWidget } from './modal';
 
@@ -196,13 +197,14 @@ export class BatchUpdateService {
 
 	private async fetchDictionaryEntry(word: string): Promise<DictEntry | null> {
 		const source = this.settings.dictionarySource;
+		const lemma = getLemma(word.toLowerCase().trim());
 
 		if (source === 'youdao') {
-			return await YoudaoService.lookup(word);
+			return await YoudaoService.lookup(lemma);
 		}
 
 		console.warn(`[EudicBridge] Dictionary source "${source}" not implemented, falling back to Youdao`);
-		return await YoudaoService.lookup(word);
+		return await YoudaoService.lookup(lemma);
 	}
 
 	private parseFrontmatter(content: string): LocalFrontmatter | null {
